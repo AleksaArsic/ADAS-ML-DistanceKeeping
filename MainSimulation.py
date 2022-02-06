@@ -9,6 +9,8 @@ import glob
 import os
 import sys
 
+from matplotlib.transforms import Transform
+
 try:
     sys.path.append(glob.glob('../carla/dist/carla-*%d.%d-%s.egg' % (
         sys.version_info.major,
@@ -37,7 +39,18 @@ from scripts.CustomTimer import CustomTimer
 from scripts.DisplayManager import DisplayManager
 from scripts.RGBCamera import RGBCamera
 
-ego_spawn_point = 352 # ego vehicle initial spawn point
+#################################################################################################################
+# constants
+ms_to_kmh_ratio = 3600/1000 # m/s to km/h ratio
+#################################################################################################################
+
+#################################################################################################################
+# ego vehicle parameters
+ego_spawn_point = 2 # ego vehicle initial spawn point
+ego_location_spawn = carla.Location(x=586.856873, y=-17.063015, z=0.300000) #ego vehicle initial spawn location
+ego_transform_spawn = carla.Rotation(pitch=0.000000, yaw=-180.035, roll=0.000000) # ego vehicle initial spawn rotation
+ego_speed_limit = 80 # ego vehicle speed limit in km/h
+#################################################################################################################
 
 def spawn_vehicles_around_ego_vehicles(client, world, ego_vehicle, radius, spawn_points, numbers_of_vehicles):
     # parameters:
@@ -52,7 +65,7 @@ def spawn_vehicles_around_ego_vehicles(client, world, ego_vehicle, radius, spawn
         dis = math.sqrt((ego_location.x-spawn_point.location.x)**2 + (ego_location.y-spawn_point.location.y)**2)
         # it also can include z-coordinate,but it is unnecessary
         if dis < radius:
-            print(dis)
+            #print(dis)
             accessible_points.append(spawn_point)
 
     vehicle_bps = world.get_blueprint_library().filter('vehicle.*.*')   # don't specify the type of vehicle
@@ -83,6 +96,25 @@ def spawn_vehicles_around_ego_vehicles(client, world, ego_vehicle, radius, spawn
         tm.distance_to_leading_vehicle(v, 0.5)
         tm.vehicle_percentage_speed_difference(v, -20)
 
+def ego_vehicle_control(vehicle):
+    abs_vector = math.sqrt(vehicle.get_velocity().x ** 2 + vehicle.get_velocity().y ** 2 + vehicle.get_velocity().z ** 2)
+    velocity_kmh = abs(abs_vector * ms_to_kmh_ratio)
+
+    vehicle_loc_x = vehicle.get_location().x 
+
+    if(velocity_kmh < ego_speed_limit):
+        steer_in = 0.0
+
+        # if location x <= 140 add some steering to the left to keep in lane
+        if((vehicle_loc_x <= 140 and vehicle_loc_x > 139)):
+            steer_in = -0.085
+
+        vehicle.apply_control(carla.VehicleControl(throttle = 1.0, steer = steer_in))
+    else:
+        vehicle.apply_control(carla.VehicleControl(throttle = 0, steer = 0))
+
+    
+
 def run_simulation(args, client):
     """This function performed one test run using the args parameters
     and connecting to the carla client passed.
@@ -107,11 +139,19 @@ def run_simulation(args, client):
             settings.fixed_delta_seconds = 0.05
             world.apply_settings(settings)
 
+        # print all spawn points 
+        #spawn_points = world.get_map().get_spawn_points()
+
+        #for i in range(len(spawn_points)):
+        #    print("Index: " + str(i) + " " +str(spawn_points[i]))
+
         # Instanciating the vehicle to which we attached the sensors
         bp = random.choice(world.get_blueprint_library().filter('vehicle.bmw.*'))
-        vehicle = world.spawn_actor(bp, world.get_map().get_spawn_points()[ego_spawn_point])
+        ego_spawn_loc = carla.Transform(ego_location_spawn, ego_transform_spawn)
+        vehicle = world.spawn_actor(bp, ego_spawn_loc)
         vehicle_list.append(vehicle)
-        vehicle.set_autopilot(True)
+        vehicle.set_autopilot(False)
+
 
         # Display Manager organize all the sensors an its display in a window
         # If can easily configure the grid and the total window size
@@ -120,16 +160,26 @@ def run_simulation(args, client):
         # Then, RGBCamera can be used to spawn RGB Camera as needed
         # and assign each to a grid position 
         cam = RGBCamera(world, display_manager, carla.Transform(carla.Location(x=0, z=1.7), carla.Rotation(yaw=+00)), 
-                      vehicle, {}, display_pos=[0, 0], save_to_disk=True)
+                      vehicle, {}, display_pos=[0, 0])
 
         # Spawn vehicles around ego vehicle
-        spawn_points = world.get_map().get_spawn_points()
-        spawn_vehicles_around_ego_vehicles(client=client, world=world, ego_vehicle=vehicle, radius=30, spawn_points=spawn_points, numbers_of_vehicles=10)
+        #spawn_points = world.get_map().get_spawn_points()
+        #spawn_vehicles_around_ego_vehicles(client=client, world=world, ego_vehicle=vehicle, radius=30, spawn_points=spawn_points, numbers_of_vehicles=10)
+
 
         #Simulation loop
         call_exit = False
         time_init_sim = timer.time()
         while True:
+
+            # ego vehicle control
+            ego_vehicle_control(vehicle)
+
+            print(vehicle.get_location())
+
+            # TO-DO:
+            # add different scenarios, reset simulation, ego vehicle and other traffic participants
+
             # Carla Tick
             if args.sync:
                 world.tick()
