@@ -44,13 +44,16 @@ class RGBCamera:
     def get_sensor(self):
         return self.sensor
 
+    def get_save_to_disk(self):
+        return self.save_to_disk
+
     def save_rgb_image(self, image):
         t_start = self.timer.time()
 
         image.convert(carla.ColorConverter.Raw)
 
         if(self.save_to_disk == True):
-            image.save_to_disk('camera_sensors_output/left_mirror/%.6d.jpg' % image.frame)
+            image.save_to_disk('camera_sensors_output/center/%.6d.jpg' % image.frame)
 
         array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
         array = np.reshape(array, (image.height, image.width, 4))
@@ -63,6 +66,9 @@ class RGBCamera:
         t_end = self.timer.time()
         self.time_processing += (t_end-t_start)
         self.tics_processing += 1
+
+    def set_save_to_disk(self, value):
+        self.save_to_disk = value
 
     def render(self):
         if self.surface is not None:

@@ -25,11 +25,24 @@ import random
 import time
 import numpy as np
 import math
+import datetime
 
 try:
     import pygame
     from pygame.locals import K_ESCAPE
     from pygame.locals import K_q
+    from pygame.locals import K_DOWN
+    from pygame.locals import K_ESCAPE
+    from pygame.locals import K_LEFT
+    from pygame.locals import K_RIGHT
+    from pygame.locals import K_SPACE
+    from pygame.locals import K_UP
+    from pygame.locals import K_a
+    from pygame.locals import K_d
+    from pygame.locals import K_q
+    from pygame.locals import K_r
+    from pygame.locals import K_s
+    from pygame.locals import K_w
 except ImportError:
     raise RuntimeError('cannot import pygame, make sure pygame package is installed')
 
@@ -38,6 +51,7 @@ except ImportError:
 from scripts.CustomTimer import CustomTimer
 from scripts.DisplayManager import DisplayManager
 from scripts.RGBCamera import RGBCamera
+from scripts.SimulationData import SimulationData
 
 #################################################################################################################
 # constants
@@ -50,6 +64,12 @@ ego_spawn_point = 2 # ego vehicle initial spawn point
 ego_location_spawn = carla.Location(x=586.856873, y=-17.063015, z=0.300000) #ego vehicle initial spawn location
 ego_transform_spawn = carla.Rotation(pitch=0.000000, yaw=-180.035, roll=0.000000) # ego vehicle initial spawn rotation
 ego_speed_limit = 80 # ego vehicle speed limit in km/h
+#################################################################################################################
+
+#################################################################################################################
+# global variables
+gRecord_data = False # boolean variable to start or stop recording simulation data for training purposes 
+gData_collected = False # boolean variable that marks data was collected in training mode
 #################################################################################################################
 
 def spawn_vehicles_around_ego_vehicles(client, world, ego_vehicle, radius, spawn_points, numbers_of_vehicles):
@@ -105,7 +125,7 @@ def ego_vehicle_control(vehicle):
     if(velocity_kmh < ego_speed_limit):
         steer_in = 0.0
 
-        # if location x <= 140 add some steering to the left to keep in lane
+        # if location x <= 140 and x > 139 add some steering to the left to keep in lane
         if((vehicle_loc_x <= 140 and vehicle_loc_x > 139)):
             steer_in = -0.085
 
@@ -113,12 +133,69 @@ def ego_vehicle_control(vehicle):
     else:
         vehicle.apply_control(carla.VehicleControl(throttle = 0, steer = 0))
 
+def ego_vehicle_manual_control(vehicle, keys):
+    milliseconds = pygame.time.Clock().get_time()
+
+    ctrl_throttle = 0.0 
+    ctrl_brake = 0.0
+    ctrl_steer = 0.0
+
+    # get vehicle properties
+    control = vehicle.get_control()
+    throttle = control.throttle
+    brake = control.brake
+    steer = control.steer
+
+    if keys[K_UP] or keys[K_w]:
+        ctrl_throttle = min(throttle + 0.01, 1.00)
+
+    if keys[K_DOWN] or keys[K_s]:
+        ctrl_brake= min(brake + 0.2, 1)
+
+    steer_increment = 5e-4 * 16
+
+    if keys[K_LEFT] or keys[K_a]:
+        if steer > 0:
+            steer = 0
+        else:
+            steer -= steer_increment
+    elif keys[K_RIGHT] or keys[K_d]:
+        if steer < 0:
+            steer = 0
+        else:
+            steer += steer_increment
+    else:
+        steer = 0.0
+
+    ctrl_steer = min(0.7, max(-0.7, steer))
     
+    vehicle.apply_control(carla.VehicleControl(throttle = ctrl_throttle, brake = ctrl_brake, steer = ctrl_steer))
+
+def collect_data(sim_data, vehicle, camera):
+    # save images from camera to disk
+    if camera.get_save_to_disk() == False:
+        camera.set_save_to_disk(True)
+
+    # collect vehicle data
+    control = vehicle.get_control()
+    sim_data.add_data(control.throttle, control.brake, control.steer)
+
+def save_data(sim_data, camera):
+    if camera.get_save_to_disk() == True:
+        camera.set_save_to_disk(False)
+
+    # export sim_data with image names to .csv 
+    sim_data.export_csv()
+    print(len(sim_data.get_data()[0]))
+    print(sim_data.get_data()[0])
 
 def run_simulation(args, client):
     """This function performed one test run using the args parameters
     and connecting to the carla client passed.
     """
+
+    global gRecord_data
+    global gData_collected
 
     display_manager = None
     vehicle = None
@@ -139,11 +216,8 @@ def run_simulation(args, client):
             settings.fixed_delta_seconds = 0.05
             world.apply_settings(settings)
 
-        # print all spawn points 
-        #spawn_points = world.get_map().get_spawn_points()
-
-        #for i in range(len(spawn_points)):
-        #    print("Index: " + str(i) + " " +str(spawn_points[i]))
+        # Instanciating SimulationData in which we will save vehicle state if 'R' is pressed
+        sim_data = SimulationData()
 
         # Instanciating the vehicle to which we attached the sensors
         bp = random.choice(world.get_blueprint_library().filter('vehicle.bmw.*'))
@@ -151,7 +225,6 @@ def run_simulation(args, client):
         vehicle = world.spawn_actor(bp, ego_spawn_loc)
         vehicle_list.append(vehicle)
         vehicle.set_autopilot(False)
-
 
         # Display Manager organize all the sensors an its display in a window
         # If can easily configure the grid and the total window size
@@ -166,16 +239,10 @@ def run_simulation(args, client):
         #spawn_points = world.get_map().get_spawn_points()
         #spawn_vehicles_around_ego_vehicles(client=client, world=world, ego_vehicle=vehicle, radius=30, spawn_points=spawn_points, numbers_of_vehicles=10)
 
-
         #Simulation loop
         call_exit = False
         time_init_sim = timer.time()
         while True:
-
-            # ego vehicle control
-            ego_vehicle_control(vehicle)
-
-            print(vehicle.get_location())
 
             # TO-DO:
             # add different scenarios, reset simulation, ego vehicle and other traffic participants
@@ -189,6 +256,20 @@ def run_simulation(args, client):
             # Render received data
             display_manager.render()
 
+            # simulation or training mode
+            if args.training == 'simulation':
+                ego_vehicle_control(vehicle)
+            else:
+                ego_vehicle_manual_control(vehicle, pygame.key.get_pressed())
+
+            # record simulation data 
+            if gRecord_data == True:
+                collect_data(sim_data, vehicle, cam)
+            else:
+                if gData_collected == True:
+                    save_data(sim_data, cam)
+                    gData_collected = False
+
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     call_exit = True
@@ -196,6 +277,9 @@ def run_simulation(args, client):
                     if event.key == K_ESCAPE or event.key == K_q:
                         call_exit = True
                         break
+                    elif event.key == K_r:
+                        gRecord_data = not gRecord_data
+                        gData_collected = True
 
             if call_exit:
                 break
@@ -239,6 +323,12 @@ def main():
         metavar='WIDTHxHEIGHT',
         default='1280x720',
         help='window resolution (default: 1280x720)')
+    argparser.add_argument(
+        '-t', '--training',
+        metavar='t',
+        dest='training',
+        default='simulation',
+        help='Training mode execution')
 
     args = argparser.parse_args()
 
