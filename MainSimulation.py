@@ -105,8 +105,9 @@ def spawn_vehicles_around_ego_vehicles(client, world, ego_vehicle, radius, spawn
         except:
             print('failed')  # if failed, print the hints.
             pass
-# you also can add those free vehicle into trafficemanager,and set them to autopilot.
-# Only need to get rid of comments for below code. Otherwise, the those vehicle will be static
+        
+    # you also can add those free vehicle into trafficemanager,and set them to autopilot.
+    # Only need to get rid of comments for below code. Otherwise, the those vehicle will be static
     tm = client.get_trafficmanager()  # create a TM object
     tm.global_percentage_speed_difference(50.0)  # set the global speed limitation
     tm_port = tm.get_port()  # get the port of tm. we need add vehicle to tm by this port
