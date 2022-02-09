@@ -1,3 +1,7 @@
+import csv
+import glob
+import os
+
 class SimulationData:
     def __init__(self):
         self.throttle = []
@@ -18,9 +22,28 @@ class SimulationData:
         self.brake.append(brake)
         self.steer.append(steer)
 
-    def export_csv(self):
-        pass
+    def export_csv(self, img_path):
+        # Format: img_name, throttle, break, steer
 
+        csv_file = open(os.path.join(img_path, 'out.csv'), "w") 
+        filenames = []
+
+        # get image names
+        os.chdir(img_path)
+        for imagePath in glob.glob("*.jpg"):
+            filenames.append(os.path.basename(imagePath))
+
+        # write first line in output .csv file
+        line = 'img_name, throttle, break, steer\n'
+
+        csv_file.write(line)
+
+        # write the rest of recorded data to output .csv file
+        for i in range(len(filenames)):
+            line = filenames[i] + ',' + str(self.throttle[i]) + ',' + str(self.brake[i]) + ',' + str(self.steer[i]) + '\n'
+            csv_file.write(line)
+
+        csv_file.close()
 
     def get_throttle(self):
         return self.throttle
