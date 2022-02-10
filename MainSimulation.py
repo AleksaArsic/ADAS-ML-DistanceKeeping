@@ -1,8 +1,8 @@
 """
-Script that render multiple rgb cameras in the same pygame window
-
-By default, it renders four cameras, left mirror, right mirror,
-center and back
+    Main simulation script used in ADAS-ML-DistanceKeeping software.
+    Script renders one RGBCamera in the pygame window, uses 
+    YOLOv3 for localization and classification of current traffic and 
+    CNN for controling the ego vehicle.
 """
 
 import glob

@@ -261,7 +261,7 @@ if __name__ == '__main__':
     ]
 
     # CNN training
-    model_history = model.fit(df_im, df_labels, # df_im - input ; df_cat - output
+    model_history = model.fit(df_im, df_labels, # df_im - input ; df_labels - output
                     batch_size=1,
                     #batch_size=64,
                     epochs=350,
