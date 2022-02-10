@@ -207,3 +207,9 @@ dmypy.json
 
 # yolo weights 
 yolov3/weights/
+
+# cnn model training output folder
+cnn/model_out/
+
+# CARLA camera sensor output folder
+camera_sensors_output
