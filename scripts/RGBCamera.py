@@ -1,6 +1,5 @@
 import carla
 import numpy as np
-import threading
 from scripts.CustomTimer import CustomTimer
 
 try:
@@ -9,18 +8,6 @@ try:
     from pygame.locals import K_q
 except ImportError:
     raise RuntimeError('cannot import pygame, make sure pygame package is installed')
-
- 
-class Thread(threading.Thread):
-    def __init__(self, thread_name, thread_ID, image):
-        threading.Thread.__init__(self)
-        self.thread_name = thread_name
-        self.thread_ID = thread_ID
-        self.image = image
- 
-        # helper function to execute the threads
-    def run(self):
-        self.image.save_to_disk('camera_sensors_output/center/%.6d.jpg' % self.image.frame)
 
 class RGBCamera:
     def __init__(self, world, display_man, transform, attached, sensor_options, display_pos, save_to_disk = False):
@@ -35,6 +22,8 @@ class RGBCamera:
 
         self.time_processing = 0.0
         self.tics_processing = 0
+
+        self.image_queue = []
 
         self.display_man.add_sensor(self)
 
@@ -65,9 +54,7 @@ class RGBCamera:
         image.convert(carla.ColorConverter.Raw)
 
         if(self.save_to_disk == True):
-            save_thread = Thread("Image", image.frame, image)
-            save_thread.start()
-            #image.save_to_disk('camera_sensors_output/center/%.6d.jpg' % image.frame)
+            self.image_queue.append(image)
 
         array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
         array = np.reshape(array, (image.height, image.width, 4))
@@ -80,6 +67,10 @@ class RGBCamera:
         t_end = self.timer.time()
         self.time_processing += (t_end-t_start)
         self.tics_processing += 1
+
+    def save_rgb_to_disk(self):
+        for i in range(len(self.image_queue)):
+            self.image_queue[i].save_to_disk('camera_sensors_output/center/%.6d.jpg' % self.image_queue[i].frame)
 
     def set_save_to_disk(self, value):
         self.save_to_disk = value

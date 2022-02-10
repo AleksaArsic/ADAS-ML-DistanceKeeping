@@ -185,10 +185,11 @@ def save_data(sim_data, camera):
     if camera.get_save_to_disk() == True:
         camera.set_save_to_disk(False)
 
+    # save images to disk
+    camera.save_rgb_to_disk()
+
     # export sim_data with image names to .csv 
     sim_data.export_csv('camera_sensors_output/center')
-    print(len(sim_data.get_data()[0]))
-    print(sim_data.get_data()[0])
 
 def run_simulation(args, client):
     """This function performed one test run using the args parameters
