@@ -24,6 +24,7 @@ class RGBCamera:
         self.tics_processing = 0
 
         self.image_queue = []
+        self.current_frame = []
 
         self.display_man.add_sensor(self)
 
@@ -56,10 +57,13 @@ class RGBCamera:
         if(self.save_to_disk == True):
             self.image_queue.append(image)
 
+
         array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
         array = np.reshape(array, (image.height, image.width, 4))
         array = array[:, :, :3]
         array = array[:, :, ::-1]
+
+        self.current_frame = array
 
         if self.display_man.render_enabled():
             self.surface = pygame.surfarray.make_surface(array.swapaxes(0, 1))

@@ -9,7 +9,9 @@ import glob
 import os
 import sys
 
-from matplotlib.transforms import Transform
+import cv2
+import tensorflow as tf
+from PIL import Image, ImageOps
 
 try:
     sys.path.append(glob.glob('../carla/dist/carla-*%d.%d-%s.egg' % (
@@ -52,6 +54,17 @@ from scripts.CustomTimer import CustomTimer
 from scripts.DisplayManager import DisplayManager
 from scripts.RGBCamera import RGBCamera
 from scripts.SimulationData import SimulationData
+from cnn.cnn import create_cnn_model
+
+#################################################################################################################
+# CNN parameters
+model_name = 'CNN_distanceKeeping.h5'
+model_path = 'cnn/model_out_1out/'
+in_width = 100      # width of the input in the CNN model
+in_heigth = 100     # heigth of the input in the CNN model
+in_channels = 1     # number of input channels to the CNN model 
+output_no = 1       # number of outputs of the CNN model
+#################################################################################################################
 
 #################################################################################################################
 # constants
@@ -117,7 +130,12 @@ def spawn_vehicles_around_ego_vehicles(client, world, ego_vehicle, radius, spawn
         tm.distance_to_leading_vehicle(v, 0.5)
         tm.vehicle_percentage_speed_difference(v, -20)
 
-def ego_vehicle_control(vehicle):
+def ego_vehicle_control(vehicle, cnn_predictions):
+    # extract cnn predictions
+    cnn_throttle = cnn_predictions[0][0]
+
+    # control of steering for scenario no 1
+    # at specific location appyl steering to stay in lane
     abs_vector = math.sqrt(vehicle.get_velocity().x ** 2 + vehicle.get_velocity().y ** 2 + vehicle.get_velocity().z ** 2)
     velocity_kmh = abs(abs_vector * ms_to_kmh_ratio)
 
@@ -130,7 +148,8 @@ def ego_vehicle_control(vehicle):
         if((vehicle_loc_x <= 140 and vehicle_loc_x > 139)):
             steer_in = -0.085
 
-        vehicle.apply_control(carla.VehicleControl(throttle = 1.0, steer = steer_in))
+        # apply control obtained trough CNN
+        vehicle.apply_control(carla.VehicleControl(throttle = cnn_throttle, steer = steer_in))
     else:
         vehicle.apply_control(carla.VehicleControl(throttle = 0, steer = 0))
 
@@ -191,6 +210,25 @@ def save_data(sim_data, camera):
     # export sim_data with image names to .csv 
     sim_data.export_csv('camera_sensors_output/center')
 
+def cnn_processing(cnn_model, current_frame):
+    # reshape it to the input layer of CNN
+    # preprocess data, scale, greyscale, etc.
+    current_frame = cv2.resize(current_frame, dsize=(in_width, in_heigth), interpolation=cv2.INTER_CUBIC)
+    current_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGR2GRAY)
+
+    # normalize image data in range [0, 1]    
+    current_frame = current_frame / 255
+
+    # reshape test dataset to appropriate dimensions of input layer of the trained CNN
+    # reshape to (1, 100, 100, 1)
+    # first dimension that is set to value=1 marks batch size
+    cnn_img = current_frame.reshape(1, in_width, in_heigth, in_channels)
+
+    # predict on reshaped frame
+    cnn_predictions = cnn_model.predict(cnn_img, verbose = 0)
+
+    return cnn_predictions
+
 def run_simulation(args, client):
     """This function performed one test run using the args parameters
     and connecting to the carla client passed.
@@ -241,6 +279,12 @@ def run_simulation(args, client):
         #spawn_points = world.get_map().get_spawn_points()
         #spawn_vehicles_around_ego_vehicles(client=client, world=world, ego_vehicle=vehicle, radius=30, spawn_points=spawn_points, numbers_of_vehicles=10)
 
+        # create CNN model
+        cnn_model = tf.keras.models.load_model(os.path.join(model_path, model_name))
+
+        # array to store current RGBCamera frame
+        current_frame = []
+
         #Simulation loop
         call_exit = False
         time_init_sim = timer.time()
@@ -258,9 +302,20 @@ def run_simulation(args, client):
             # Render received data
             display_manager.render()
 
+            # process current RGBCamera frame trough CNN
+            # get latest frame from RGBCamera
+            current_frame = cam.current_frame
+
+            # process current RGBCamera frame
+            cnn_predictions = cnn_processing(cnn_model, current_frame)
+
+            # DEBUG: print predictions
+            # TO-DO: control the ego vehicle based on predictions
+            print(cnn_predictions)
+
             # simulation or training mode
             if args.training == 'simulation':
-                ego_vehicle_control(vehicle)
+                ego_vehicle_control(vehicle, cnn_predictions)
             else:
                 ego_vehicle_manual_control(vehicle, pygame.key.get_pressed())
 
@@ -293,8 +348,6 @@ def run_simulation(args, client):
         client.apply_batch([carla.command.DestroyActor(x) for x in vehicle_list])
 
         world.apply_settings(original_settings)
-
-
 
 def main():
     argparser = argparse.ArgumentParser(

@@ -212,4 +212,4 @@ yolov3/weights/
 cnn/model_out/
 
 # CARLA camera sensor output folder
-camera_sensors_output
+camera_sensors_output/

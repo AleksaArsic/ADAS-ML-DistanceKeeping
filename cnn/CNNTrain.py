@@ -33,7 +33,7 @@ model_name = 'CNN_distanceKeeping.h5'
 in_width = 100      # width of the input in the CNN model
 in_heigth = 100     # heigth of the input in the CNN model
 in_channels = 1     # number of input channels to the CNN model 
-output_no = 3       # number of outputs of the CNN model
+output_no = 1       # number of outputs of the CNN model
 #################################################################################################################
 
 # read input .csv file
@@ -82,7 +82,7 @@ def load_images_and_labels(images, imgs_dir, labels, label_path, inputWidth = 10
 
             img = Image.open(image_path)
 
-            img = img.resize((inputWidth,inputHeight), Image.ANTIALIAS)
+            img = img.resize((inputWidth, inputHeight), Image.ANTIALIAS)
             img = ImageOps.grayscale(img)
             img = np.asarray(img)
             
@@ -231,6 +231,10 @@ def plot_training_results(val_acc, val_loss, train_acc, train_loss):
 if __name__ == '__main__':
     script_start = datetime.datetime.now()
 
+    # force GPU, solves Error code 126
+    #gpus = tf.config.experimental.list_physical_devices('GPU')
+    #tf.config.experimental.set_memory_growth(gpus[0], True)
+
     # model output destination
     model_out_path = os.path.join(output_path, model_name)
 
@@ -254,7 +258,7 @@ if __name__ == '__main__':
 
     # define callbacks
     callbacks = [
-        EarlyStopping(monitor='val_accuracy', mode = 'max', patience=2, verbose=1),
+        EarlyStopping(monitor='val_accuracy', mode = 'max', patience=25, verbose=1),
         ReduceLROnPlateau(monitor='val_accuracy', mode = 'max', factor=0.5, patience=15, min_lr=0.000001, verbose=1),
         ModelCheckpoint(model_out_path, monitor='val_accuracy', mode = 'max', verbose=1, save_best_only=True, save_weights_only=False),
         tensorboard
