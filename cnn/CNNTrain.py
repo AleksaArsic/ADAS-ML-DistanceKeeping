@@ -23,7 +23,7 @@ filenames = [] # list to store image names
 
 imgs_dir = '../camera_sensors_output/center'
 label_path = '../camera_sensors_output/center/out.csv'
-output_path = '.\\model_out\\' # output folder to save results of training
+output_path = '.\\model_out_center_out1\\' # output folder to save results of training
 SAMPLE_DIFF_THRESHOLD = 0.1 # threshold when determing difference between results
 #################################################################################################################
 
@@ -33,7 +33,7 @@ model_name = 'CNN_distanceKeeping.h5'
 in_width = 100      # width of the input in the CNN model
 in_heigth = 100     # heigth of the input in the CNN model
 in_channels = 1     # number of input channels to the CNN model 
-output_no = 1       # number of outputs of the CNN model
+output_no = 3       # number of outputs of the CNN model
 #################################################################################################################
 
 # read input .csv file
@@ -258,7 +258,7 @@ if __name__ == '__main__':
 
     # define callbacks
     callbacks = [
-        EarlyStopping(monitor='val_accuracy', mode = 'max', patience=25, verbose=1),
+        EarlyStopping(monitor='val_accuracy', mode = 'max', patience=50, verbose=1),
         ReduceLROnPlateau(monitor='val_accuracy', mode = 'max', factor=0.5, patience=15, min_lr=0.000001, verbose=1),
         ModelCheckpoint(model_out_path, monitor='val_accuracy', mode = 'max', verbose=1, save_best_only=True, save_weights_only=False),
         tensorboard

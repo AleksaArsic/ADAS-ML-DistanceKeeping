@@ -211,7 +211,6 @@ def save_data(sim_data, camera):
     sim_data.export_csv('camera_sensors_output/center')
 
 def cnn_processing(cnn_model, current_frame):
-    # reshape it to the input layer of CNN
     # preprocess data, scale, greyscale, etc.
     current_frame = cv2.resize(current_frame, dsize=(in_width, in_heigth), interpolation=cv2.INTER_CUBIC)
     current_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGR2GRAY)
