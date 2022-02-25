@@ -85,7 +85,7 @@ def output_boxes(inputs, model_size, max_output_size, max_output_size_per_class,
     #    iou_threshold: Intersection over union 
     #    confidence_threshold: Object presence confidence threshold 
 
-    #Povratna vrednost:
+    #Return value:
     #    boxes_dicts: Dictionary of bounding boxes, probabilites, classes and number of valid detections
 
     # print(inputs.shape) # Dimensions of input set of vectors
@@ -123,6 +123,8 @@ def draw_outputs(img, boxes, objectness, classes, nums, class_names, id, distanc
 
     boxes, objectness, classes, nums = boxes[id], objectness[id], classes[id], nums[id]
     boxes=np.array(boxes)
+
+    print(boxes)
 
     for i in range(nums):
         x1y1 = tuple((boxes[i,0:2] * [img.shape[1],img.shape[0]]).astype(np.int32))
