@@ -56,25 +56,26 @@ def unifyCSVFiles(parsedYOLOv3csv, parsedCNNcsv):
                     correspondingImgFound = True
                     tempData = []
 
-                    safeToAccelerate = 0
-                    vehiclePresentLeft = 0
-                    vehiclePresentRight = 0
-                    vehiclePresentCenter = 0
+                    # placeholder values, they need to be labeled manually
+                    safeToAccelerate = 1
+                    vehiclePresentLeft = 1
+                    vehiclePresentRight = 1
+                    vehiclePresentCenter = 1
 
                     # determine if it is safe to accelerate
                     # this parameter needs to be adjusted by hand 
                     # determined solely based on the throttle and break parameters 
                     # from parsedCNNcsv (may be wrongly determined and not fully accurate)
                     if(float(parsedCNNcsv[j][throttleId]) > 0 and float(parsedCNNcsv[j][breakId]) == 0):
-                        safeToAccelerate = 1
-                    elif(float(parsedCNNcsv[j][throttleId]) == 0 and float(parsedCNNcsv[j][breakId]) > 0):
                         safeToAccelerate = 0
+                    elif(float(parsedCNNcsv[j][throttleId]) == 0 and float(parsedCNNcsv[j][breakId]) > 0):
+                        safeToAccelerate = 1
                     else:
                         # undefined behvaiour 
                         # not safe to accelerate
-                        safeToAccelerate = 0
+                        safeToAccelerate = 1
 
-                    tempData = [parsedYOLOv3csv[i][imgNameId], 1 if parsedYOLOv3csv[i][noOfBoundingBoxesId] else 0, vehiclePresentLeft, vehiclePresentRight, vehiclePresentCenter, safeToAccelerate]
+                    tempData = [parsedYOLOv3csv[i][imgNameId], 0 if int(parsedYOLOv3csv[i][noOfBoundingBoxesId]) else 1, vehiclePresentLeft, vehiclePresentRight, vehiclePresentCenter, safeToAccelerate]
                     
                     break
 

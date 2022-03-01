@@ -23,8 +23,9 @@ filenames = [] # list to store image names
 
 imgs_dir = '../camera_sensors_output/center'
 label_path = '../camera_sensors_output/center/out.csv'
-output_path = '.\\model_out_center_out1\\' # output folder to save results of training
+output_path = '.\\model_out_center_it1\\' # output folder to save results of training
 SAMPLE_DIFF_THRESHOLD = 0.1 # threshold when determing difference between results
+loadSize = 1218
 #################################################################################################################
 
 #################################################################################################################
@@ -33,7 +34,7 @@ model_name = 'CNN_distanceKeeping.h5'
 in_width = 100      # width of the input in the CNN model
 in_heigth = 100     # heigth of the input in the CNN model
 in_channels = 1     # number of input channels to the CNN model 
-output_no = 3       # number of outputs of the CNN model
+output_no = 5       # number of outputs of the CNN model
 #################################################################################################################
 
 # read input .csv file
@@ -51,13 +52,14 @@ def read_csv(filepath):
     return result
 
 # load images and labels
-def load_images_and_labels(images, imgs_dir, labels, label_path, inputWidth = 100, inputHeight = 100):
-    print ('loading  images...')
+def load_images_and_labels(images, imgs_dir, labels, label_path, loadSize, inputWidth = 100, inputHeight = 100):
+    print ('loading ' + str(loadSize) + ' images and labels... \n')
 
     filenames = []
     lines = read_csv(label_path)
     lines.pop(0) # remove header
-    cnt = 0
+    cnt = 0 # loadSize counter, loads specific amount of dataset
+
     for line in lines:
 
         if (len(line)>0):
@@ -91,6 +93,10 @@ def load_images_and_labels(images, imgs_dir, labels, label_path, inputWidth = 10
             images.append(img)
 
         cnt = cnt + 1
+
+        if(cnt >= loadSize):
+            break
+
     print ('loading complete!\n')
     
     return [images, labels, filenames]
@@ -111,7 +117,7 @@ def train_test_dataset_split(images, labels):
     print(test_len)
 
     for i in range(test_len):
-        n = random.randint(0, dataset_len)
+        n = random.randint(0, dataset_len - 1)
 
         test_images.append(images[n])
         test_labels.append(labels[n])
@@ -239,7 +245,9 @@ if __name__ == '__main__':
     model_out_path = os.path.join(output_path, model_name)
 
     # load images and labels for training
-    [images, labels, filenames] = load_images_and_labels(images, imgs_dir, labels, label_path)
+    lSize = loadSize
+    [images, labels, filenames] = load_images_and_labels(images, imgs_dir, labels, label_path, lSize)
+    print(filenames[-1])
     # perform a train-test dataset split
     [test_images, test_labels] = train_test_dataset_split(images, labels)
 
@@ -258,7 +266,7 @@ if __name__ == '__main__':
 
     # define callbacks
     callbacks = [
-        EarlyStopping(monitor='val_accuracy', mode = 'max', patience=50, verbose=1),
+        EarlyStopping(monitor='val_accuracy', mode = 'max', patience=40, verbose=1),
         ReduceLROnPlateau(monitor='val_accuracy', mode = 'max', factor=0.5, patience=15, min_lr=0.000001, verbose=1),
         ModelCheckpoint(model_out_path, monitor='val_accuracy', mode = 'max', verbose=1, save_best_only=True, save_weights_only=False),
         tensorboard
@@ -268,7 +276,7 @@ if __name__ == '__main__':
     model_history = model.fit(df_im, df_labels, # df_im - input ; df_labels - output
                     batch_size=1,
                     #batch_size=64,
-                    epochs=350,
+                    epochs=250,
                     validation_data=(val_im, val_labels),
                     callbacks=callbacks,
                     verbose=0)
