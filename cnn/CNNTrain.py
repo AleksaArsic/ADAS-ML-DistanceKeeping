@@ -25,8 +25,10 @@ filenames = [] # list to store image names
 imgs_dir = '../camera_sensors_output/center'
 label_path = '../camera_sensors_output/center/out.csv'
 output_path = '.\\model_out_center_it1\\' # output folder to save results of training
-SAMPLE_DIFF_THRESHOLD = 0.1 # threshold when determing difference between results
-loadSize = 1218
+SAMPLE_DIFF_THRESHOLD = 0.05 # threshold when determing difference between results
+
+loadSize = 1218             # how much images and labels to load
+startIndexTestData = 0   # from which index to start loading images and labels
 
 targetImgWidht = 1280
 targetImgHeght = 370
@@ -70,13 +72,13 @@ def cutImage(pilImg, targetW, targetH):
     return pilImg
 
 # load images and labels
-def load_images_and_labels(images, imgs_dir, labels, label_path, loadSize, inputWidth = 100, inputHeight = 100):
+def load_images_and_labels(images, imgs_dir, labels, label_path, loadSize, inputWidth = 100, inputHeight = 100, startIndex = 0):
     print ('loading ' + str(loadSize) + ' images and labels... \n')
 
     filenames = []
     lines = read_csv(label_path)
     lines.pop(0) # remove header
-    cnt = 0 # loadSize counter, loads specific amount of dataset
+    cnt = startIndex # loadSize counter, loads specific amount of dataset from specifix index
 
     for line in lines:
 
@@ -114,7 +116,7 @@ def load_images_and_labels(images, imgs_dir, labels, label_path, loadSize, input
 
         cnt = cnt + 1
 
-        if(cnt >= loadSize):
+        if(cnt - startIndex >= loadSize):
             break
 
     print ('loading complete!\n')
@@ -165,18 +167,10 @@ def compare_results(test_labels, predictions):
 
     for i in range(len(predictions)):
         # calculate difference accuracy between samples
-        maxRefValue = max(test_labels[i])
-    
-        if maxRefValue == 0:
-            maxRefValue += 0.00001
-
-        if(np.any(test_labels[i] == 0)):
-            test_labels[i] += 0.00001
-
-        diff = abs(predictions[i] - test_labels[i]) / test_labels[i]
+        diff = abs(predictions[i] - test_labels[i]) # / 1.0
     
         sample_difference_acc = []
-        
+
         for j in range(len(diff)):
             if(diff[j] <= SAMPLE_DIFF_THRESHOLD):
                 sample_difference_acc.append(True)

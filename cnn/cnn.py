@@ -30,7 +30,7 @@ def create_cnn_model(in_width, in_height, channels, output_no):
     model.add(Dense(output_no)) 
     model.add(Activation('sigmoid'))
 
-    model.compile(optimizer="adam", loss='mean_squared_error', metrics=["accuracy"])
+    model.compile(optimizer="adam", loss='binary_crossentropy', metrics=["accuracy"])
 
     model.summary()
 
