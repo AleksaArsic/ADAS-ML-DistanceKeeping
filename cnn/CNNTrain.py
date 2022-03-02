@@ -4,6 +4,7 @@
 '''
 import os
 import random
+from turtle import up
 import numpy as np
 import tensorflow as tf 
 import matplotlib.pyplot as plt
@@ -26,6 +27,9 @@ label_path = '../camera_sensors_output/center/out.csv'
 output_path = '.\\model_out_center_it1\\' # output folder to save results of training
 SAMPLE_DIFF_THRESHOLD = 0.1 # threshold when determing difference between results
 loadSize = 1218
+
+targetImgWidht = 1280
+targetImgHeght = 370
 #################################################################################################################
 
 #################################################################################################################
@@ -50,6 +54,20 @@ def read_csv(filepath):
             s = filename+','+categ
             result.append(s)
     return result
+
+# cuts Images to target width and height
+def cutImage(pilImg, targetW, targetH):
+
+    imgWidth, imgHeight = pilImg.size
+
+    leftPoint = 0
+    upperPoint = imgHeight - targetH
+    rightPoint = imgWidth
+    lowerPoint = imgHeight
+
+    pilImg = pilImg.crop((leftPoint, upperPoint, rightPoint, lowerPoint))
+
+    return pilImg
 
 # load images and labels
 def load_images_and_labels(images, imgs_dir, labels, label_path, loadSize, inputWidth = 100, inputHeight = 100):
@@ -83,6 +101,8 @@ def load_images_and_labels(images, imgs_dir, labels, label_path, loadSize, input
             labels.append(cat)
 
             img = Image.open(image_path)
+
+            img = cutImage(img, targetImgWidht, targetImgHeght)
 
             img = img.resize((inputWidth, inputHeight), Image.ANTIALIAS)
             img = ImageOps.grayscale(img)
@@ -247,7 +267,7 @@ if __name__ == '__main__':
     # load images and labels for training
     lSize = loadSize
     [images, labels, filenames] = load_images_and_labels(images, imgs_dir, labels, label_path, lSize)
-    print(filenames[-1])
+
     # perform a train-test dataset split
     [test_images, test_labels] = train_test_dataset_split(images, labels)
 
@@ -274,7 +294,7 @@ if __name__ == '__main__':
 
     # CNN training
     model_history = model.fit(df_im, df_labels, # df_im - input ; df_labels - output
-                    batch_size=1,
+                    batch_size=2,
                     #batch_size=64,
                     epochs=250,
                     validation_data=(val_im, val_labels),
