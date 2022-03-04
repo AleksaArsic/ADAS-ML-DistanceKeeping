@@ -1,4 +1,3 @@
-import csv
 import glob
 import os
 
@@ -25,7 +24,7 @@ class SimulationData:
     def export_csv(self, img_path):
         # Format: img_name, throttle, break, steer
 
-        csv_file = open(os.path.join(img_path, 'out.csv'), "w") 
+        csv_file = open(os.path.join(img_path, 'MainSimulation_out.csv'), "w") 
         filenames = []
 
         # get image names

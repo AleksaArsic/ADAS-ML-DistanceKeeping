@@ -57,6 +57,10 @@ from scripts.SimulationData import SimulationData
 from cnn.cnn import create_cnn_model
 
 #################################################################################################################
+datasetSavePath = 'camera_sensors_output/center_town02' # Path where images and .csv file will be saved in training mode
+#################################################################################################################
+
+#################################################################################################################
 # CNN parameters
 model_name = 'CNN_distanceKeeping.h5'
 model_path = 'cnn/model_out_1out/'
@@ -205,12 +209,15 @@ def save_data(sim_data, camera):
         camera.set_save_to_disk(False)
 
     # save images to disk
-    camera.save_rgb_to_disk()
+    camera.save_rgb_to_disk(datasetSavePath)
 
     # export sim_data with image names to .csv 
-    sim_data.export_csv('camera_sensors_output/center')
+    sim_data.export_csv(datasetSavePath)
 
 def cnn_processing(cnn_model, current_frame):
+    # cut first 350 pixels in all directions as not whole image is needed for processing
+    # processed image size is 1280x370 pixels
+
     # preprocess data, scale, greyscale, etc.
     current_frame = cv2.resize(current_frame, dsize=(in_width, in_heigth), interpolation=cv2.INTER_CUBIC)
     current_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGR2GRAY)
@@ -260,8 +267,16 @@ def run_simulation(args, client):
 
         # Instanciating the vehicle to which we attached the sensors
         bp = random.choice(world.get_blueprint_library().filter('vehicle.bmw.*'))
-        ego_spawn_loc = carla.Transform(ego_location_spawn, ego_transform_spawn)
-        vehicle = world.spawn_actor(bp, ego_spawn_loc)
+        # town06 location
+        #ego_spawn_loc = carla.Transform(ego_location_spawn, ego_transform_spawn)
+        #vehicle = world.spawn_actor(bp, ego_spawn_loc)
+        
+        # town01 location
+        spawn_points = world.get_map().get_spawn_points()
+        random.shuffle(spawn_points)
+        ego_transform = spawn_points[0]
+        vehicle = world.spawn_actor(bp, ego_transform)
+        
         vehicle_list.append(vehicle)
         vehicle.set_autopilot(False)
 
@@ -278,10 +293,11 @@ def run_simulation(args, client):
         #spawn_points = world.get_map().get_spawn_points()
         #spawn_vehicles_around_ego_vehicles(client=client, world=world, ego_vehicle=vehicle, radius=30, spawn_points=spawn_points, numbers_of_vehicles=10)
 
-        # create CNN model
-        cnn_model = tf.keras.models.load_model(os.path.join(model_path, model_name))
+        if args.training == 'simulation':
+            # create CNN model
+            cnn_model = tf.keras.models.load_model(os.path.join(model_path, model_name))
 
-        # array to store current RGBCamera frame
+        # array to store current RGBCamera frame to be sent to CNN
         current_frame = []
 
         #Simulation loop
@@ -301,16 +317,17 @@ def run_simulation(args, client):
             # Render received data
             display_manager.render()
 
-            # process current RGBCamera frame trough CNN
-            # get latest frame from RGBCamera
-            current_frame = cam.current_frame
+            if args.training == 'simulation':
+                # process current RGBCamera frame trough CNN
+                # get latest frame from RGBCamera
+                current_frame = cam.current_frame
 
-            # process current RGBCamera frame
-            cnn_predictions = cnn_processing(cnn_model, current_frame)
+                # process current RGBCamera frame
+                cnn_predictions = cnn_processing(cnn_model, current_frame)
 
-            # DEBUG: print predictions
-            # TO-DO: control the ego vehicle based on predictions
-            print(cnn_predictions)
+                # DEBUG: print predictions
+                # TO-DO: control the ego vehicle based on predictions
+                print(cnn_predictions)
 
             # simulation or training mode
             if args.training == 'simulation':

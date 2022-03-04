@@ -1,6 +1,9 @@
-## UnifyDataset.py - Script that used in unification of data from YOLOv3 and CARLA simulator
+## UnifyDataset.py - Script that used in unification of data from YOLOv3 and CNN's CARLA simulator
 ## in one .csv file used for training of CNN neural network.
 
+import os
+import glob
+from datetime import datetime
 from pathlib import Path
 
 errCode = -1 # error code
@@ -11,9 +14,9 @@ breakId = 2     # break index in cnn .csv file
 
 noOfBoundingBoxesId = 1 # noOfBoundingBoxes index in yolov3 .csv file
 
-yolov3OutCSVPath = '../camera_sensors_output/center/out_yolov3.csv' # paths to input .csv files
-cnnOutCSVPath = '../camera_sensors_output/center/out_cnn.csv'       # paths to input .csv files
-outCSVPath = '../camera_sensors_output/center/out.csv'              # path to output .csv files
+yolov3OutCSVPath = '../camera_sensors_output/center_town02/out_yolov3.csv' # paths to input .csv files
+cnnOutCSVPath = '../camera_sensors_output/center_town02/out_cnn.csv'       # paths to input .csv files
+outCSVPath = '../camera_sensors_output/center_town02'                      # path to output .csv folder
 
 def parseCSVFile(csvPath):
     data = []
@@ -90,9 +93,11 @@ def unifyCSVFiles(parsedYOLOv3csv, parsedCNNcsv):
 def saveCSVFile(outPath, data):
     # Format: imgName, Vpresent, Vpl, Vpr, safeToAcc
 
-    csvFile = open(outPath, "w+") 
+    outFilePath = os.path.join(outPath, "UnifyDataset_" + datetime.now().strftime("%m_%d_%Y_%H_%M_%S") + ".csv")
 
-    print("Saving .csv file to location", outPath)
+    csvFile = open(outFilePath, "w+") 
+
+    print("Saving .csv file to location", outFilePath)
 
     for i in range(len(data)):
         line = ''

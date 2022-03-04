@@ -1,3 +1,4 @@
+import os
 import carla
 import numpy as np
 from scripts.CustomTimer import CustomTimer
@@ -57,7 +58,6 @@ class RGBCamera:
         if(self.save_to_disk == True):
             self.image_queue.append(image)
 
-
         array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
         array = np.reshape(array, (image.height, image.width, 4))
         array = array[:, :, :3]
@@ -72,9 +72,10 @@ class RGBCamera:
         self.time_processing += (t_end-t_start)
         self.tics_processing += 1
 
-    def save_rgb_to_disk(self):
+    def save_rgb_to_disk(self, path):
         for i in range(len(self.image_queue)):
-            self.image_queue[i].save_to_disk('camera_sensors_output/center/%.6d.jpg' % self.image_queue[i].frame)
+            imgName = '%.6d.jpg' % self.image_queue[i].frame
+            self.image_queue[i].save_to_disk(os.path.join(path, imgName))
 
     def set_save_to_disk(self, value):
         self.save_to_disk = value
