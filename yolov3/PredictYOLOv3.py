@@ -22,7 +22,7 @@ confidence_threshold = 0.5          # Threshold of trustworthiness that the obje
 
 cfgfile = './cfg/yolov3.cfg'                  # Path to YOLOv3 configuration file
 weightfile = './weights/yolov3_weights.tf'    # Path to file that contains trained coeficients in TensorFlow format
-imgPath = '../camera_sensors_output/center_town01'        # Path to input images on which we will run YOLOv3 model
+imgPath = '../camera_sensors_output/center_town02'        # Path to input images on which we will run YOLOv3 model
 cLeftCamId = 0               # left camera id
 objectsOfInterest = [0, 1, 2, 3, 5, 6, 7] # Objects of interest from coco.names classes
 
@@ -89,7 +89,7 @@ def saveCSVFile(data):
     # write the rest of recorded data to output .csv file
     for i in range(len(data)):
         # extract class names as one string
-        tempClassNames = np.array(data[i][2])[0]
+        tempClassNames = np.array(data[i][2])
         classNames = ' '
         
         for j in range(data[i][1]):
@@ -103,6 +103,25 @@ def saveCSVFile(data):
         csvFile.write(line)
 
     csvFile.close()
+
+def determineClassesOfInterest(noOfObjects, detectedClasses, objectsOfInterest):
+
+    detectedClasses = np.array(detectedClasses[0])
+
+    cnt = 0
+    ids = []
+
+    for i in range(len(detectedClasses)):
+        if(detectedClasses[i] not in objectsOfInterest):
+            cnt += 1
+            ids.append(i)
+
+    noOfObjects -= cnt
+
+    for i in range(cnt):
+        detectedClasses = np.delete(detectedClasses, ids[i])
+
+    return noOfObjects, detectedClasses
 
 def main():
 
@@ -152,7 +171,10 @@ def main():
         # Debug
         # out_img = draw_outputs(image, boxes, scores, classes, nums, class_names, cLeftCamId, distanceIndexPair)
 
-        noOfObjects.append(np.array(nums)[0])
+        # Determine if any objects of interest are found on the image
+        noOfObjectsOfInterest, tempDetectedClasses = determineClassesOfInterest(np.array(nums)[0], tempDetectedClasses, objectsOfInterest)
+
+        noOfObjects.append(noOfObjectsOfInterest)
         detectedClasses.append(tempDetectedClasses)
 
         if(cv2.waitKey(20) & 0xFF == ord('q')):
@@ -166,7 +188,7 @@ def main():
     saveCSVFile(data)
 
 if __name__ == '__main__':
-    script_start = datetime.datetime.now()
+    script_start = datetime.now()
 
     # force GPU, solves Error code 126
     gpus = tf.config.experimental.list_physical_devices('GPU')
@@ -174,5 +196,5 @@ if __name__ == '__main__':
 
     main()
 
-    script_end = datetime.datetime.now()
+    script_end = datetime.now()
     print (script_end - script_start)

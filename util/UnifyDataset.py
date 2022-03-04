@@ -14,8 +14,8 @@ breakId = 2     # break index in cnn .csv file
 
 noOfBoundingBoxesId = 1 # noOfBoundingBoxes index in yolov3 .csv file
 
-yolov3OutCSVPath = '../camera_sensors_output/center_town02/out_yolov3.csv' # paths to input .csv files
-cnnOutCSVPath = '../camera_sensors_output/center_town02/out_cnn.csv'       # paths to input .csv files
+yolov3OutCSVPath = '../camera_sensors_output/center_town02/PredictYOLOv3_03_04_2022_20_15_33.csv' # paths to input .csv files
+cnnOutCSVPath = '../camera_sensors_output/center_town02/out_cnn_sim.csv'       # paths to input .csv files
 outCSVPath = '../camera_sensors_output/center_town02'                      # path to output .csv folder
 
 def parseCSVFile(csvPath):
