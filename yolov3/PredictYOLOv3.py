@@ -2,14 +2,12 @@
 #                    as part of the dataset used for training of CNN model
 
 import tensorflow as tf
-from utils import load_class_names, output_boxes, draw_outputs, resize_image
+from utils import output_boxes
 import cv2
 import numpy as np
 from yolov3 import YOLOv3Net
 import os
 import glob
-import math
-from PIL import Image, ImageOps
 from datetime import datetime
 
 model_size = (416, 416, 3)  # Expected input format of the model 

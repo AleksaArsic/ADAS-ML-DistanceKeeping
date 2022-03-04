@@ -2,7 +2,6 @@
 ## in one .csv file used for training of CNN neural network.
 
 import os
-import glob
 from datetime import datetime
 from pathlib import Path
 

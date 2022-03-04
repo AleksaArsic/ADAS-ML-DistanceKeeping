@@ -13,8 +13,6 @@ from datetime import datetime
 from time import time
 from PIL import Image, ImageOps
 from sklearn.model_selection import train_test_split 
-from tensorflow.keras.callbacks import TensorBoard, ReduceLROnPlateau
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 
 from cnn import create_cnn_model
 
