@@ -16,21 +16,23 @@ from sklearn.model_selection import train_test_split
 
 from cnn import create_cnn_model
 
+##################################ADJUSTABLE PARAMETERS##########################################################
+imgs_dir = 'dataset/'
+label_path = 'dataset/CombineDataset_03_05_2022_01_18_35.csv'
+outPath = '.\\model_out_center_it1_b\\' # output folder to save results of predicting
+SAMPLE_DIFF_THRESHOLD = 0.05 # threshold when determing difference between results
+
+loadSize = 4969          # how much images and labels to load
+startIndexTestData = 0   # from which index to start loading images and labels
+
+targetImgWidht = 1280   # target image width 
+targetImgHeght = 370    # target image height
+#################################################################################################################
+
 #################################################################################################################
 images = [] # list to store training images
 labels = [] # list to store values of training labels
 filenames = [] # list to store image names 
-
-imgs_dir = '../camera_sensors_output/center'
-label_path = '../camera_sensors_output/center/out.csv'
-outPath = '.\\model_out_center_it1_b\\' # output folder to save results of predicting
-SAMPLE_DIFF_THRESHOLD = 0.05 # threshold when determing difference between results
-
-loadSize = 1218             # how much images and labels to load
-startIndexTestData = 0   # from which index to start loading images and labels
-
-targetImgWidht = 1280
-targetImgHeght = 370
 #################################################################################################################
 
 #################################################################################################################

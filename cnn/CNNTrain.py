@@ -9,6 +9,7 @@ import numpy as np
 import tensorflow as tf 
 import matplotlib.pyplot as plt
 import datetime
+from datetime import datetime
 from time import time
 from PIL import Image, ImageOps
 from sklearn.model_selection import train_test_split 
@@ -22,12 +23,15 @@ images = [] # list to store training images
 labels = [] # list to store values of training labels
 filenames = [] # list to store image names 
 
-imgs_dir = '../camera_sensors_output/center'
-label_path = '../camera_sensors_output/center/out.csv'
-output_path = '.\\model_out_center_it1\\' # output folder to save results of training
-SAMPLE_DIFF_THRESHOLD = 0.05 # threshold when determing difference between results
+imgs_dir = './dataset'
+label_path = './dataset/dataset.csv'
+output_path = '.\\model_out_center_it2_b1\\' # output folder to save results of training
+SAMPLE_DIFF_THRESHOLD = 0.05 # threshold when determing difference between positive and negative results
 
-loadSize = 1218             # how much images and labels to load
+epochNo = 250   # number of epochs per training
+batchSize = 4   # batch size in one epoch
+
+loadSize = 2321             # how much images and labels to load
 startIndexTestData = 0   # from which index to start loading images and labels
 
 targetImgWidht = 1280
@@ -135,9 +139,6 @@ def train_test_dataset_split(images, labels):
     # debug
     indexes = []
 
-    print(len(images))
-    print(test_len)
-
     for i in range(test_len):
         n = random.randint(0, dataset_len - 1)
 
@@ -150,8 +151,6 @@ def train_test_dataset_split(images, labels):
         dataset_len -= 1
 
         indexes.append(n)
-
-    print(indexes)
 
     return [test_images, test_labels]
 
@@ -249,7 +248,7 @@ def plot_training_results(val_acc, val_loss, train_acc, train_loss):
     plt.savefig(os.path.join(output_path, 'model_phase01_loss.png'))
 
 if __name__ == '__main__':
-    script_start = datetime.datetime.now()
+    script_start = datetime.now()
 
     # force GPU, solves Error code 126
     #gpus = tf.config.experimental.list_physical_devices('GPU')
@@ -280,17 +279,17 @@ if __name__ == '__main__':
 
     # define callbacks
     callbacks = [
-        EarlyStopping(monitor='val_accuracy', mode = 'max', patience=40, verbose=1),
-        ReduceLROnPlateau(monitor='val_accuracy', mode = 'max', factor=0.5, patience=15, min_lr=0.000001, verbose=1),
-        ModelCheckpoint(model_out_path, monitor='val_accuracy', mode = 'max', verbose=1, save_best_only=True, save_weights_only=False),
+        EarlyStopping(monitor='val_binary_accuracy', mode = 'max', patience=25, verbose=1),
+        ReduceLROnPlateau(monitor='val_binary_accuracy', mode = 'max', factor=0.0025, patience=10, min_lr=0.000001, verbose=1),
+        ModelCheckpoint(model_out_path, monitor='val_binary_accuracy', mode = 'max', verbose=1, save_best_only=True, save_weights_only=False),
         tensorboard
     ]
 
     # CNN training
     model_history = model.fit(df_im, df_labels, # df_im - input ; df_labels - output
-                    batch_size=2,
+                    batch_size=batchSize,
                     #batch_size=64,
-                    epochs=250,
+                    epochs=epochNo,
                     validation_data=(val_im, val_labels),
                     callbacks=callbacks,
                     verbose=0)
@@ -298,9 +297,9 @@ if __name__ == '__main__':
     # Visualizing accuracy and loss of training the model
     history_dict=model_history.history
     print(history_dict.keys())
-    val_acc = history_dict['val_accuracy']
+    val_acc = history_dict['val_binary_accuracy']
     val_loss = history_dict['val_loss']
-    train_acc = history_dict['accuracy']
+    train_acc = history_dict['binary_accuracy']
     train_loss = history_dict['loss']
 
     #plot accuracy and loss
@@ -324,5 +323,5 @@ if __name__ == '__main__':
     # write test results in .csv file
     write_test_to_csv(test_labels, predictions, predictions_acc)
 
-    script_end = datetime.datetime.now()
+    script_end = datetime.now()
     print (script_end - script_start)

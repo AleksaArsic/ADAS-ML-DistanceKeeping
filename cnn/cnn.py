@@ -30,7 +30,9 @@ def create_cnn_model(in_width, in_height, channels, output_no):
     model.add(Dense(output_no)) 
     model.add(Activation('sigmoid'))
 
-    model.compile(optimizer="adam", loss='binary_crossentropy', metrics=["accuracy"])
+    model.compile(optimizer=tf.keras.optimizers.SGD(lr=0.01, momentum=0.9), \
+                  loss='binary_crossentropy',                               \
+                  metrics=[tf.keras.metrics.BinaryAccuracy(name = 'binary_accuracy', threshold = 0.05)])
 
     model.summary()
 
