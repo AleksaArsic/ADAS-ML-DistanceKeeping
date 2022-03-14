@@ -57,13 +57,13 @@ from scripts.SimulationData import SimulationData
 from cnn.cnn import create_cnn_model
 
 #################################################################################################################
-datasetSavePath = 'camera_sensors_output/center_town02' # Path where images and .csv file will be saved in training mode
+datasetSavePath = 'camera_sensors_output/center_town05' # Path where images and .csv file will be saved in training mode
 #################################################################################################################
 
 #################################################################################################################
 # CNN parameters
 model_name = 'CNN_distanceKeeping.h5'
-model_path = 'cnn/model_out_1out/'
+model_path = 'cnn/model_out/model_out_center_it4_b1/'
 in_width = 100      # width of the input in the CNN model
 in_heigth = 100     # heigth of the input in the CNN model
 in_channels = 1     # number of input channels to the CNN model 
@@ -87,6 +87,9 @@ ego_speed_limit = 80 # ego vehicle speed limit in km/h
 # global variables
 gRecord_data = False # boolean variable to start or stop recording simulation data for training purposes 
 gData_collected = False # boolean variable that marks data was collected in training mode
+
+targetImgWidht = 600   # image width on which CNN was trained
+targetImgHeight = 390    # image heigth on which CNN was trained
 #################################################################################################################
 
 def spawn_vehicles_around_ego_vehicles(client, world, ego_vehicle, radius, spawn_points, numbers_of_vehicles):
@@ -136,7 +139,7 @@ def spawn_vehicles_around_ego_vehicles(client, world, ego_vehicle, radius, spawn
 
 def ego_vehicle_control(vehicle, cnn_predictions):
     # extract cnn predictions
-    cnn_throttle = cnn_predictions[0][0]
+    cnn_throttle = 1 - cnn_predictions[0][4]
 
     # control of steering for scenario no 1
     # at specific location appyl steering to stay in lane
@@ -214,9 +217,25 @@ def save_data(sim_data, camera):
     # export sim_data with image names to .csv 
     sim_data.export_csv(datasetSavePath)
 
+def cutImage(img, targetW, targetH):
+
+    imgWidth, imgHeight = pilImg.size
+
+    widthCrop = imgWidth - targetW
+
+    leftPoint = widthCrop / 2
+    upperPoint = imgHeight - targetH
+    rightPoint = imgWidth - leftPoint
+    lowerPoint = imgHeight
+
+    pilImg = pilImg.crop((leftPoint, upperPoint, rightPoint, lowerPoint))
+
+    return pilImg
+
 def cnn_processing(cnn_model, current_frame):
     # cut first 350 pixels in all directions as not whole image is needed for processing
-    # processed image size is 1280x370 pixels
+    # processed image size is (targetImgWidth x targetImageHeight) pixels
+    #current_frame = cutImage(current_frame, targetImgWidht, targetImgHeight)
 
     # preprocess data, scale, greyscale, etc.
     current_frame = cv2.resize(current_frame, dsize=(in_width, in_heigth), interpolation=cv2.INTER_CUBIC)
@@ -268,14 +287,14 @@ def run_simulation(args, client):
         # Instanciating the vehicle to which we attached the sensors
         bp = random.choice(world.get_blueprint_library().filter('vehicle.bmw.*'))
         # town06 location
-        #ego_spawn_loc = carla.Transform(ego_location_spawn, ego_transform_spawn)
-        #vehicle = world.spawn_actor(bp, ego_spawn_loc)
+        ego_spawn_loc = carla.Transform(ego_location_spawn, ego_transform_spawn)
+        vehicle = world.spawn_actor(bp, ego_spawn_loc)
         
-        # town01 location
-        spawn_points = world.get_map().get_spawn_points()
-        random.shuffle(spawn_points)
-        ego_transform = spawn_points[0]
-        vehicle = world.spawn_actor(bp, ego_transform)
+        # town0x random location
+        #spawn_points = world.get_map().get_spawn_points()
+        #random.shuffle(spawn_points)
+        #ego_transform = spawn_points[0]
+        #vehicle = world.spawn_actor(bp, ego_transform)
         
         vehicle_list.append(vehicle)
         vehicle.set_autopilot(False)
@@ -317,21 +336,21 @@ def run_simulation(args, client):
             # Render received data
             display_manager.render()
 
-            if args.training == 'simulation':
-                # process current RGBCamera frame trough CNN
-                # get latest frame from RGBCamera
-                current_frame = cam.current_frame
-
-                # process current RGBCamera frame
-                cnn_predictions = cnn_processing(cnn_model, current_frame)
-
-                # DEBUG: print predictions
-                # TO-DO: control the ego vehicle based on predictions
-                print(cnn_predictions)
+            # get latest frame from RGBCamera
+            current_frame = np.asarray(cam.current_frame)
 
             # simulation or training mode
-            if args.training == 'simulation':
+            # check if simulation loaded by checking dimension of current_frame
+            if args.training == 'simulation' and current_frame.shape[0] != 0:
+                # process current RGBCamera frame trough CNN
+                cnn_predictions = cnn_processing(cnn_model, current_frame)
+
+                # TO-DO: control the ego vehicle based on predictions
                 ego_vehicle_control(vehicle, cnn_predictions)
+
+                # DEBUG: print predictions
+                cnn_predictions = np.round(cnn_predictions, decimals = 3)
+                print(cnn_predictions)
             else:
                 ego_vehicle_manual_control(vehicle, pygame.key.get_pressed())
 

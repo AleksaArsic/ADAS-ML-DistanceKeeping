@@ -2,6 +2,7 @@
     This script is used to construct and train CNN model used for 
     ADAS-ML-DistanceKeeping software
 '''
+import difflib
 import os
 import random
 from turtle import up
@@ -25,17 +26,17 @@ filenames = [] # list to store image names
 
 imgs_dir = './dataset'
 label_path = './dataset/dataset.csv'
-output_path = '.\\model_out_center_it2_b1\\' # output folder to save results of training
+output_path = '.\\model_out\\model_out_center_it4_b1\\' # output folder to save results of training
 SAMPLE_DIFF_THRESHOLD = 0.05 # threshold when determing difference between positive and negative results
 
-epochNo = 250   # number of epochs per training
-batchSize = 4   # batch size in one epoch
+epochNo = 250   # number of epochs per training, any number greater than dataset size will load whole dataset
+batchSize = 1   # batch size in one epoch
 
-loadSize = 2321             # how much images and labels to load
+loadSize = 2048             # how much images and labels to load
 startIndexTestData = 0   # from which index to start loading images and labels
 
-targetImgWidht = 1280
-targetImgHeght = 370
+targetImgWidht = 600
+targetImgHeight = 370
 #################################################################################################################
 
 #################################################################################################################
@@ -66,9 +67,11 @@ def cutImage(pilImg, targetW, targetH):
 
     imgWidth, imgHeight = pilImg.size
 
-    leftPoint = 0
+    widthCrop = imgWidth - targetW
+
+    leftPoint = widthCrop / 2
     upperPoint = imgHeight - targetH
-    rightPoint = imgWidth
+    rightPoint = imgWidth - leftPoint
     lowerPoint = imgHeight
 
     pilImg = pilImg.crop((leftPoint, upperPoint, rightPoint, lowerPoint))
@@ -86,7 +89,7 @@ def load_images_and_labels(images, imgs_dir, labels, label_path, loadSize, input
 
     for line in lines:
 
-        if (len(line)>0):
+        if ((len(line) > 0)):
             p1 = line.find(',')
             fname = line[0:p1]
             p1 = p1+1
@@ -108,7 +111,7 @@ def load_images_and_labels(images, imgs_dir, labels, label_path, loadSize, input
 
             img = Image.open(image_path)
 
-            img = cutImage(img, targetImgWidht, targetImgHeght)
+            img = cutImage(img, targetImgWidht, targetImgHeight)
 
             img = img.resize((inputWidth, inputHeight), Image.ANTIALIAS)
             img = ImageOps.grayscale(img)
@@ -122,6 +125,9 @@ def load_images_and_labels(images, imgs_dir, labels, label_path, loadSize, input
 
         if(cnt - startIndex >= loadSize):
             break
+
+    # shuffle dataset before training
+    images, labels = shuffleDataset(images, labels)
 
     print ('loading complete!\n')
     
@@ -223,6 +229,34 @@ def write_test_to_csv(test_labels, predictions, predictions_acc):
     with open(os.path.join(output_path, 'test_predictions_results.csv'), 'w') as f:
         f.write(s)
 
+def shuffleDataset(imgs, labels):
+
+    indices = np.arange(len(imgs))
+    np.random.shuffle(indices)
+
+    imgs = np.asarray(imgs)[indices]
+    imgs = imgs.tolist()
+    labels = np.asarray(labels)[indices]
+    labels = labels.tolist()
+
+    return imgs, labels
+
+def reduceDataset(imgs, labels):
+
+    indexes = [random.randrange(0, len(imgs) - 1, 1) for i in range(int(len(imgs) / 7))]
+
+    tempImgs = []
+    tempLabels = []
+
+    for i in range(len(indexes)):
+        tempImgs.append(imgs[i])
+        tempLabels.append(labels[i])
+
+    imgs = tempImgs
+    labels = tempLabels
+
+    return imgs, labels
+
 # plot training results
 def plot_training_results(val_acc, val_loss, train_acc, train_loss):
 
@@ -279,11 +313,19 @@ if __name__ == '__main__':
 
     # define callbacks
     callbacks = [
-        EarlyStopping(monitor='val_binary_accuracy', mode = 'max', patience=25, verbose=1),
-        ReduceLROnPlateau(monitor='val_binary_accuracy', mode = 'max', factor=0.0025, patience=10, min_lr=0.000001, verbose=1),
-        ModelCheckpoint(model_out_path, monitor='val_binary_accuracy', mode = 'max', verbose=1, save_best_only=True, save_weights_only=False),
+        EarlyStopping(monitor='val_accuracy', mode = 'max', patience=25, verbose=1),
+        ReduceLROnPlateau(monitor='val_accuracy', mode = 'max', factor=0.0025, patience=10, min_lr=0.000001, verbose=1),
+        ModelCheckpoint(model_out_path, monitor='val_accuracy', mode = 'max', verbose=1, save_best_only=True, save_weights_only=False),
         tensorboard
     ]
+
+    #print(len(df_im))
+    #print(len(df_labels))
+    #print(df_im)
+    #print(df_labels)
+
+    # reduce dataset before training
+    #df_im, df_labels = reduceDataset(df_im, df_labels)
 
     # CNN training
     model_history = model.fit(df_im, df_labels, # df_im - input ; df_labels - output
@@ -297,9 +339,9 @@ if __name__ == '__main__':
     # Visualizing accuracy and loss of training the model
     history_dict=model_history.history
     print(history_dict.keys())
-    val_acc = history_dict['val_binary_accuracy']
+    val_acc = history_dict['val_accuracy']
     val_loss = history_dict['val_loss']
-    train_acc = history_dict['binary_accuracy']
+    train_acc = history_dict['accuracy']
     train_loss = history_dict['loss']
 
     #plot accuracy and loss

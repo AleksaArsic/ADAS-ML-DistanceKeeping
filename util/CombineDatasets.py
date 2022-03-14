@@ -23,9 +23,12 @@ breakId = 2     # break index in cnn .csv file
 # inputh paths to .csv files to be concatenated
 inPaths = [ '../camera_sensors_output/center/out.csv',                                      \
             '../camera_sensors_output/center_town01/UnifyDataset_03_04_2022_20_20_07.csv',  \
-            '../camera_sensors_output/center_town02/UnifyDataset_03_04_2022_20_21_19.csv' ]
+            '../camera_sensors_output/center_town02/UnifyDataset_03_04_2022_20_21_19.csv',  \
+            '../camera_sensors_output/center_town03/town03.csv',                            \
+            '../camera_sensors_output/center_town04/town04.csv',                            \
+            '../camera_sensors_output/center_town05/town05.csv',   ]
 
-outPath = '../cnn/dataset/'   # path to output folder of combined dataset
+outPath = '../cnn/dataset_town1_6/'   # path to output folder of combined dataset
 
 def parseCSVFile(csvPath):
     data = []
@@ -92,6 +95,8 @@ def copyImages(inPaths, outPath, combinedData, noOfImages):
 
     index = 0
 
+    indexesOfNoneExisting = []
+
     for i in range(len(inPaths)):
         # number of images in one folder
         cnt = noOfImages[i] + index
@@ -115,10 +120,17 @@ def copyImages(inPaths, outPath, combinedData, noOfImages):
             inImgPath = os.path.join(strInPath, combinedData[j][0])
             outImgPath = os.path.join(outPath, combinedData[j][0])
 
-            # copy images from inImgPath to outImgPath
-            shutil.copy(inImgPath, outImgPath) 
+            if(os.path.isfile(inImgPath)):
+                # copy images from inImgPath to outImgPath
+                shutil.copy(inImgPath, outImgPath) 
+            else:
+                indexesOfNoneExisting.append(j)
 
         index += noOfImages[i]
+
+    for i in range(len(indexesOfNoneExisting) -1, -1, -1):
+        print(combinedData[i][0], " not found on disk. Deleting from .csv")
+        combinedData.pop(indexesOfNoneExisting[i])
 
 
 def renameImages(imgPath, combinedData):

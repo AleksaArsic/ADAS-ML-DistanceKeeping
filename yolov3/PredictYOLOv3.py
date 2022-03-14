@@ -20,7 +20,7 @@ confidence_threshold = 0.5          # Threshold of trustworthiness that the obje
 
 cfgfile = './cfg/yolov3.cfg'                  # Path to YOLOv3 configuration file
 weightfile = './weights/yolov3_weights.tf'    # Path to file that contains trained coeficients in TensorFlow format
-imgPath = '../camera_sensors_output/center_town02'        # Path to input images on which we will run YOLOv3 model
+imgPath = '../camera_sensors_output/center_town05'        # Path to input images on which we will run YOLOv3 model
 cLeftCamId = 0               # left camera id
 objectsOfInterest = [0, 1, 2, 3, 5, 6, 7] # Objects of interest from coco.names classes
 
