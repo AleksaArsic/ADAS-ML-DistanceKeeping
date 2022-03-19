@@ -57,15 +57,15 @@ from scripts.SimulationData import SimulationData
 from cnn.cnn import create_cnn_model
 
 #################################################################################################################
-datasetSavePath = 'camera_sensors_output/center_town05' # Path where images and .csv file will be saved in training mode
+datasetSavePath = 'camera_sensors_output/center_town01_4' # Path where images and .csv file will be saved in training mode
 #################################################################################################################
 
 #################################################################################################################
 # CNN parameters
 model_name = 'CNN_distanceKeeping.h5'
-model_path = 'cnn/model_out/model_out_center_it4_b1/'
-in_width = 100      # width of the input in the CNN model
-in_heigth = 100     # heigth of the input in the CNN model
+model_path = 'cnn/model_out/model_out_center_it4_b4/'
+in_width = 300      # width of the input in the CNN model
+in_heigth = 185     # heigth of the input in the CNN model
 in_channels = 1     # number of input channels to the CNN model 
 output_no = 1       # number of outputs of the CNN model
 #################################################################################################################
@@ -88,8 +88,11 @@ ego_speed_limit = 80 # ego vehicle speed limit in km/h
 gRecord_data = False # boolean variable to start or stop recording simulation data for training purposes 
 gData_collected = False # boolean variable that marks data was collected in training mode
 
-targetImgWidht = 600   # image width on which CNN was trained
-targetImgHeight = 390    # image heigth on which CNN was trained
+nativeImgWidth = 1280 # native image width for RGBCamera sensor
+nativeImgHeight = 720 # native image height for RGBCamera sensor
+
+targetImgWidth = 600   # image width on which CNN was trained
+targetImgHeight = 370    # image heigth on which CNN was trained
 #################################################################################################################
 
 def spawn_vehicles_around_ego_vehicles(client, world, ego_vehicle, radius, spawn_points, numbers_of_vehicles):
@@ -219,23 +222,24 @@ def save_data(sim_data, camera):
 
 def cutImage(img, targetW, targetH):
 
-    imgWidth, imgHeight = pilImg.size
+    imgWidth, imgHeight = nativeImgWidth, nativeImgHeight
 
     widthCrop = imgWidth - targetW
 
-    leftPoint = widthCrop / 2
-    upperPoint = imgHeight - targetH
-    rightPoint = imgWidth - leftPoint
-    lowerPoint = imgHeight
+    leftPoint = (imgWidth - targetImgWidth ) // 2
+    rightPoint = leftPoint + targetW
+    upperPoint = imgHeight - targetImgHeight
+    lowerPoint = upperPoint + targetImgHeight
 
-    pilImg = pilImg.crop((leftPoint, upperPoint, rightPoint, lowerPoint))
-
-    return pilImg
+    #img = Image.fromarray(img).crop((leftPoint, upperPoint, rightPoint, lowerPoint))
+    img = img[upperPoint : lowerPoint, leftPoint : rightPoint]
+    #crop_img = img[y:y+h, x:x+w]
+    return img
 
 def cnn_processing(cnn_model, current_frame):
     # cut first 350 pixels in all directions as not whole image is needed for processing
     # processed image size is (targetImgWidth x targetImageHeight) pixels
-    #current_frame = cutImage(current_frame, targetImgWidht, targetImgHeight)
+    current_frame = cutImage(current_frame, targetImgWidth, targetImgHeight)
 
     # preprocess data, scale, greyscale, etc.
     current_frame = cv2.resize(current_frame, dsize=(in_width, in_heigth), interpolation=cv2.INTER_CUBIC)
@@ -297,7 +301,7 @@ def run_simulation(args, client):
         #vehicle = world.spawn_actor(bp, ego_transform)
         
         vehicle_list.append(vehicle)
-        vehicle.set_autopilot(False)
+        vehicle.set_autopilot(True)
 
         # Display Manager organize all the sensors an its display in a window
         # If can easily configure the grid and the total window size
@@ -306,7 +310,7 @@ def run_simulation(args, client):
         # Then, RGBCamera can be used to spawn RGB Camera as needed
         # and assign each to a grid position 
         cam = RGBCamera(world, display_manager, carla.Transform(carla.Location(x=0, z=1.7), carla.Rotation(yaw=+00)), 
-                      vehicle, {}, display_pos=[0, 0])
+                      vehicle, {}, display_pos=[0, 0], saveResolution=7)
 
         # Spawn vehicles around ego vehicle
         #spawn_points = world.get_map().get_spawn_points()
@@ -314,7 +318,10 @@ def run_simulation(args, client):
 
         if args.training == 'simulation':
             # create CNN model
+            #cnn_model = create_cnn_model(in_width, in_heigth, 1, 5)
+            # create CNN model
             cnn_model = tf.keras.models.load_model(os.path.join(model_path, model_name))
+            #cnn_model.load_weights(os.path.join(model_path, model_name))
 
         # array to store current RGBCamera frame to be sent to CNN
         current_frame = []

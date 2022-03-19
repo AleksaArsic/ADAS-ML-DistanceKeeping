@@ -26,13 +26,13 @@ filenames = [] # list to store image names
 
 imgs_dir = './dataset'
 label_path = './dataset/dataset.csv'
-output_path = '.\\model_out\\model_out_center_it4_b1\\' # output folder to save results of training
+output_path = './model_out/model_out_center_it4_b4_200_200/' # output folder to save results of training
 SAMPLE_DIFF_THRESHOLD = 0.05 # threshold when determing difference between positive and negative results
 
 epochNo = 250   # number of epochs per training, any number greater than dataset size will load whole dataset
-batchSize = 1   # batch size in one epoch
+batchSize = 4   # batch size in one epoch
 
-loadSize = 2048             # how much images and labels to load
+loadSize = 2048          # how much images and labels to load
 startIndexTestData = 0   # from which index to start loading images and labels
 
 targetImgWidht = 600
@@ -42,8 +42,8 @@ targetImgHeight = 370
 #################################################################################################################
 # CNN parameters
 model_name = 'CNN_distanceKeeping.h5'
-in_width = 100      # width of the input in the CNN model
-in_heigth = 100     # heigth of the input in the CNN model
+in_width = 200      # width of the input in the CNN model
+in_heigth = 200     # heigth of the input in the CNN model
 in_channels = 1     # number of input channels to the CNN model 
 output_no = 5       # number of outputs of the CNN model
 #################################################################################################################
@@ -127,7 +127,7 @@ def load_images_and_labels(images, imgs_dir, labels, label_path, loadSize, input
             break
 
     # shuffle dataset before training
-    images, labels = shuffleDataset(images, labels)
+    #images, labels = shuffleDataset(images, labels)
 
     print ('loading complete!\n')
     
@@ -293,7 +293,7 @@ if __name__ == '__main__':
 
     # load images and labels for training
     lSize = loadSize
-    [images, labels, filenames] = load_images_and_labels(images, imgs_dir, labels, label_path, lSize)
+    [images, labels, filenames] = load_images_and_labels(images, imgs_dir, labels, label_path, lSize, inputWidth=in_width, inputHeight=in_heigth)
 
     # perform a train-test dataset split
     [test_images, test_labels] = train_test_dataset_split(images, labels)
@@ -313,19 +313,11 @@ if __name__ == '__main__':
 
     # define callbacks
     callbacks = [
-        EarlyStopping(monitor='val_accuracy', mode = 'max', patience=25, verbose=1),
-        ReduceLROnPlateau(monitor='val_accuracy', mode = 'max', factor=0.0025, patience=10, min_lr=0.000001, verbose=1),
-        ModelCheckpoint(model_out_path, monitor='val_accuracy', mode = 'max', verbose=1, save_best_only=True, save_weights_only=False),
+        EarlyStopping(monitor='val_categorical_accuracy', mode = 'max', patience=30, verbose=1),
+        ReduceLROnPlateau(monitor='val_categorical_accuracy', mode = 'max', factor=0.0025, patience=10, min_lr=0.000001, verbose=1),
+        ModelCheckpoint(model_out_path, monitor='val_categorical_accuracy', mode = 'max', verbose=1, save_best_only=True, save_weights_only=False),
         tensorboard
     ]
-
-    #print(len(df_im))
-    #print(len(df_labels))
-    #print(df_im)
-    #print(df_labels)
-
-    # reduce dataset before training
-    #df_im, df_labels = reduceDataset(df_im, df_labels)
 
     # CNN training
     model_history = model.fit(df_im, df_labels, # df_im - input ; df_labels - output
@@ -334,14 +326,15 @@ if __name__ == '__main__':
                     epochs=epochNo,
                     validation_data=(val_im, val_labels),
                     callbacks=callbacks,
-                    verbose=0)
+                    shuffle=True,
+                    verbose=1)
 
     # Visualizing accuracy and loss of training the model
     history_dict=model_history.history
     print(history_dict.keys())
-    val_acc = history_dict['val_accuracy']
+    val_acc = history_dict['val_categorical_accuracy']
     val_loss = history_dict['val_loss']
-    train_acc = history_dict['accuracy']
+    train_acc = history_dict['categorical_accuracy']
     train_loss = history_dict['loss']
 
     #plot accuracy and loss

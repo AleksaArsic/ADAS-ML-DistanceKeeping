@@ -11,7 +11,7 @@ except ImportError:
     raise RuntimeError('cannot import pygame, make sure pygame package is installed')
 
 class RGBCamera:
-    def __init__(self, world, display_man, transform, attached, sensor_options, display_pos, save_to_disk = False):
+    def __init__(self, world, display_man, transform, attached, sensor_options, display_pos, save_to_disk = False, saveResolution = 1):
         self.save_to_disk = save_to_disk
         self.surface = None
         self.world = world
@@ -26,6 +26,8 @@ class RGBCamera:
 
         self.image_queue = []
         self.current_frame = []
+        self.saveResolution = saveResolution
+        self.resolutionCnt = 0
 
         self.display_man.add_sensor(self)
 
@@ -55,8 +57,11 @@ class RGBCamera:
 
         image.convert(carla.ColorConverter.Raw)
 
-        if(self.save_to_disk == True):
+        if((self.save_to_disk == True) and (self.resolutionCnt % self.saveResolution == 0)):
+            self.resolutionCnt = 0
             self.image_queue.append(image)
+
+        self.resolutionCnt += 1
 
         array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
         array = np.reshape(array, (image.height, image.width, 4))

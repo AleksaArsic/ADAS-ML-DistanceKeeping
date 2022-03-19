@@ -17,15 +17,16 @@ from sklearn.model_selection import train_test_split
 from cnn import create_cnn_model
 
 ##################################ADJUSTABLE PARAMETERS##########################################################
-imgs_dir = 'dataset/'
-label_path = 'dataset/CombineDataset_03_05_2022_01_18_35.csv'
-outPath = '.\\model_out_center_it1_b\\' # output folder to save results of predicting
+imgs_dir = '../camera_sensors_output/dataset_aditional_part_1'
+label_path = '../camera_sensors_output/dataset_aditional_part_1/dataset_aditional_part_1.csv'
+outPath = '../camera_sensors_output/dataset_aditional_part_1' # output folder to save results of predicting
+modelPath = './model_out/model_out_center_it4_b2' # path to the model
 SAMPLE_DIFF_THRESHOLD = 0.05 # threshold when determing difference between results
 
 loadSize = 4969          # how much images and labels to load
 startIndexTestData = 0   # from which index to start loading images and labels
 
-targetImgWidht = 1280   # target image width 
+targetImgWidht = 600    # target image width 
 targetImgHeght = 370    # target image height
 #################################################################################################################
 
@@ -38,8 +39,8 @@ filenames = [] # list to store image names
 #################################################################################################################
 # CNN parameters
 model_name = 'CNN_distanceKeeping.h5'
-in_width = 100      # width of the input in the CNN model
-in_heigth = 100     # heigth of the input in the CNN model
+in_width = 200      # width of the input in the CNN model
+in_heigth = 200     # heigth of the input in the CNN model
 in_channels = 1     # number of input channels to the CNN model 
 output_no = 5       # number of outputs of the CNN model
 #################################################################################################################
@@ -63,9 +64,11 @@ def cutImage(pilImg, targetW, targetH):
 
     imgWidth, imgHeight = pilImg.size
 
-    leftPoint = 0
+    widthCrop = imgWidth - targetW
+
+    leftPoint = widthCrop / 2
     upperPoint = imgHeight - targetH
-    rightPoint = imgWidth
+    rightPoint = imgWidth - leftPoint
     lowerPoint = imgHeight
 
     pilImg = pilImg.crop((leftPoint, upperPoint, rightPoint, lowerPoint))
@@ -124,7 +127,7 @@ def load_images_and_labels(images, imgs_dir, labels, label_path, loadSize, input
     
     return [images, labels, filenames]
 
-def saveCSVFile(outPath, data):
+def saveCSVFile(outPath, data, filenames):
     # Format: imgName, Vpresent, Vpl, Vpr, safeToAcc
 
     outFilePath = os.path.join(outPath, "CNNPredict_" + datetime.now().strftime("%m_%d_%Y_%H_%M_%S") + ".csv")
@@ -136,6 +139,7 @@ def saveCSVFile(outPath, data):
     for i in range(len(data)):
         line = ''
 
+        line += filenames[i]
         for j in range(len(data[i])):
             line += str(data[i][j]) + ','
 
@@ -155,11 +159,11 @@ if __name__ == '__main__':
     #tf.config.experimental.set_memory_growth(gpus[0], True)
 
     # model location
-    model_out_path = os.path.join(outPath, model_name)
+    model_out_path = os.path.join(modelPath, model_name)
 
     # load images and labels for training
     lSize = loadSize
-    [images, labels, filenames] = load_images_and_labels(images, imgs_dir, labels, label_path, lSize)
+    [images, labels, filenames] = load_images_and_labels(images, imgs_dir, labels, label_path, lSize, inputWidth=in_width, inputHeight=in_heigth)
 
     # create CNN model
     model = create_cnn_model(in_width, in_heigth, in_channels, output_no)
@@ -169,7 +173,6 @@ if __name__ == '__main__':
     df_im = df_im.reshape(df_im.shape[0], in_width, in_heigth, in_channels)
     df_labels = np.asarray(labels)
     df_labels = df_labels.reshape(df_labels.shape[0], output_no)
-    tr_im, val_im, tr_cat, val_labels = train_test_split(df_im, df_labels, test_size=0.2)
 
     # load trained model
     model = tf.keras.models.load_model(model_out_path)
@@ -178,7 +181,7 @@ if __name__ == '__main__':
     predictions = model.predict(df_im, verbose = 1)
 
     # write test results in .csv file
-    saveCSVFile(imgs_dir, predictions)
+    saveCSVFile(imgs_dir, predictions, filenames)
 
     script_end = datetime.now()
     print (script_end - script_start)
