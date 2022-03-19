@@ -20,7 +20,7 @@ from cnn import create_cnn_model
 imgs_dir = '../camera_sensors_output/dataset_aditional_part_1'
 label_path = '../camera_sensors_output/dataset_aditional_part_1/dataset_aditional_part_1.csv'
 outPath = '../camera_sensors_output/dataset_aditional_part_1' # output folder to save results of predicting
-modelPath = './model_out/model_out_center_it4_b2' # path to the model
+modelPath = './model_out/model_out_center_it4_b2_200_200_lr_0005' # path to the model
 SAMPLE_DIFF_THRESHOLD = 0.05 # threshold when determing difference between results
 
 loadSize = 4969          # how much images and labels to load

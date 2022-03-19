@@ -63,11 +63,10 @@ datasetSavePath = 'camera_sensors_output/center_town01_4' # Path where images an
 #################################################################################################################
 # CNN parameters
 model_name = 'CNN_distanceKeeping.h5'
-model_path = 'cnn/model_out/model_out_center_it4_b4/'
-in_width = 300      # width of the input in the CNN model
-in_heigth = 185     # heigth of the input in the CNN model
+model_path = 'cnn/model_out/model_out_center_it4_b4_200_200_lr_0005/'
+in_width = 200      # width of the input in the CNN model
+in_heigth = 200     # heigth of the input in the CNN model
 in_channels = 1     # number of input channels to the CNN model 
-output_no = 1       # number of outputs of the CNN model
 #################################################################################################################
 
 #################################################################################################################
@@ -76,7 +75,7 @@ ms_to_kmh_ratio = 3600/1000 # m/s to km/h ratio
 #################################################################################################################
 
 #################################################################################################################
-# ego vehicle parameters
+# ego vehicle parameters for town06
 ego_spawn_point = 2 # ego vehicle initial spawn point
 ego_location_spawn = carla.Location(x=586.856873, y=-17.063015, z=0.300000) #ego vehicle initial spawn location
 ego_transform_spawn = carla.Rotation(pitch=0.000000, yaw=-180.035, roll=0.000000) # ego vehicle initial spawn rotation
@@ -255,6 +254,8 @@ def cnn_processing(cnn_model, current_frame):
 
     # predict on reshaped frame
     cnn_predictions = cnn_model.predict(cnn_img, verbose = 0)
+
+    # TO-DO: apply moving average on cnn predictions to minimize great oscillations in predicted values.
 
     return cnn_predictions
 
