@@ -13,7 +13,7 @@ noError = 0  # OK
 
 imgExstension = '.jpg'   # image extension to look for on disk
 
-inPath = '../cnn/dataset'
+inPath = '../camera_sensors_output/center_town00_addition2_1'
 outPath = './CropImgs_out'
 
 targetImgWidht = 600

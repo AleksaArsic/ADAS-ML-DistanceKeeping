@@ -4,9 +4,9 @@
 '''
 import os
 
-startEnumeration = 30000 # from which number to start enumeration of new img names
+startEnumeration = 42400 # from which number to start enumeration of new img names
 imgExstension = '.jpg'   # image extension to look for on disk
-imgPath = '..\camera_sensors_output\center_town03' # path to folder containing images to rename
+imgPath = '..\camera_sensors_output\center_town00_addition2_1' # path to folder containing images to rename
 leadingZeros = 6 # indicates how many leading zeros to add to new image names
 
 

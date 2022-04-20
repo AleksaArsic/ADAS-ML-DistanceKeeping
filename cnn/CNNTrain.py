@@ -32,7 +32,7 @@ SAMPLE_DIFF_THRESHOLD = 0.05 # threshold when determing difference between posit
 epochNo = 250   # number of epochs per training, any number greater than dataset size will load whole dataset
 batchSize = 4   # batch size in one epoch
 
-loadSize = 2048          # how much images and labels to load
+loadSize = 3365          # how much images and labels to load
 startIndexTestData = 0   # from which index to start loading images and labels
 
 targetImgWidht = 600
