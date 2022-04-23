@@ -30,7 +30,7 @@ def create_cnn_model(in_width, in_height, channels, output_no):
     model.add(Dense(output_no)) 
     model.add(Activation('sigmoid'))
 
-    model.compile(optimizer=tf.keras.optimizers.SGD(learning_rate=0.005, momentum=0.9), \
+    model.compile(optimizer=tf.keras.optimizers.SGD(learning_rate=0.05, momentum=0.9), \
                   loss='binary_crossentropy',                               \
                   metrics=[tf.keras.metrics.CategoricalAccuracy(name="categorical_accuracy", dtype=None)])
 

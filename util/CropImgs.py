@@ -13,7 +13,7 @@ noError = 0  # OK
 
 imgExstension = '.jpg'   # image extension to look for on disk
 
-inPath = '../camera_sensors_output/center_town00_addition2_1'
+inPath = '../camera_sensors_output/center_town03_addition2_3'
 outPath = './CropImgs_out'
 
 targetImgWidht = 600

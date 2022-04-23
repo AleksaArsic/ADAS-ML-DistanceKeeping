@@ -2,7 +2,6 @@
     This script is used to construct and train CNN model used for 
     ADAS-ML-DistanceKeeping software
 '''
-import difflib
 import os
 import random
 from turtle import up
@@ -26,13 +25,13 @@ filenames = [] # list to store image names
 
 imgs_dir = './dataset'
 label_path = './dataset/dataset.csv'
-output_path = './model_out/model_out_center_it4_b4_200_200/' # output folder to save results of training
+output_path = './model_out/model_out_center_it6_b4_200_200/' # output folder to save results of training
 SAMPLE_DIFF_THRESHOLD = 0.05 # threshold when determing difference between positive and negative results
 
 epochNo = 250   # number of epochs per training, any number greater than dataset size will load whole dataset
-batchSize = 4   # batch size in one epoch
+batchSize = 2   # batch size in one epoch
 
-loadSize = 3365          # how much images and labels to load
+loadSize = 8599          # how much images and labels to load
 startIndexTestData = 0   # from which index to start loading images and labels
 
 targetImgWidht = 600
@@ -288,6 +287,17 @@ if __name__ == '__main__':
     #gpus = tf.config.experimental.list_physical_devices('GPU')
     #tf.config.experimental.set_memory_growth(gpus[0], True)
 
+    # Show which graphics card is allocated
+    if tf.test.gpu_device_name():
+        print('Default GPU Device: {}'.format(tf.test.gpu_device_name()))
+    else:
+        print("Please install GPU version of TF")
+
+    # Enable GPU memory growth
+    #physical_devices = tf.config.experimental.list_physical_devices('GPU')
+    #if len(physical_devices) > 0:
+    #    tf.config.experimental.set_memory_growth(physical_devices[0], True)
+
     # model output destination
     model_out_path = os.path.join(output_path, model_name)
 
@@ -314,7 +324,7 @@ if __name__ == '__main__':
     # define callbacks
     callbacks = [
         EarlyStopping(monitor='val_categorical_accuracy', mode = 'max', patience=30, verbose=1),
-        ReduceLROnPlateau(monitor='val_categorical_accuracy', mode = 'max', factor=0.0025, patience=10, min_lr=0.000001, verbose=1),
+        ReduceLROnPlateau(monitor='val_categorical_accuracy', mode = 'max', factor=0.025, patience=10, min_lr=0.000001, verbose=1),
         ModelCheckpoint(model_out_path, monitor='val_categorical_accuracy', mode = 'max', verbose=1, save_best_only=True, save_weights_only=False),
         tensorboard
     ]
