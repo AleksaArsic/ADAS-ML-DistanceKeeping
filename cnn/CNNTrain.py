@@ -25,13 +25,13 @@ filenames = [] # list to store image names
 
 imgs_dir = './dataset'
 label_path = './dataset/dataset.csv'
-output_path = './model_out/model_out_center_it6_b4_200_200/' # output folder to save results of training
+output_path = './model_out/model_out_center_it6_b4_200_200_dset_10000_2/' # output folder to save results of training
 SAMPLE_DIFF_THRESHOLD = 0.05 # threshold when determing difference between positive and negative results
 
 epochNo = 250   # number of epochs per training, any number greater than dataset size will load whole dataset
-batchSize = 2   # batch size in one epoch
+batchSize = 4   # batch size in one epoch
 
-loadSize = 8599          # how much images and labels to load
+loadSize = 10000          # how much images and labels to load
 startIndexTestData = 0   # from which index to start loading images and labels
 
 targetImgWidht = 600
@@ -41,6 +41,7 @@ targetImgHeight = 370
 #################################################################################################################
 # CNN parameters
 model_name = 'CNN_distanceKeeping.h5'
+newModelName = 'CNN_distanceKeeping2.h5'
 in_width = 200      # width of the input in the CNN model
 in_heigth = 200     # heigth of the input in the CNN model
 in_channels = 1     # number of input channels to the CNN model 
@@ -287,6 +288,9 @@ if __name__ == '__main__':
     #gpus = tf.config.experimental.list_physical_devices('GPU')
     #tf.config.experimental.set_memory_growth(gpus[0], True)
 
+    # force CPU
+    tf.config.set_visible_devices([], 'GPU')
+
     # Show which graphics card is allocated
     if tf.test.gpu_device_name():
         print('Default GPU Device: {}'.format(tf.test.gpu_device_name()))
@@ -308,8 +312,14 @@ if __name__ == '__main__':
     # perform a train-test dataset split
     [test_images, test_labels] = train_test_dataset_split(images, labels)
 
-    # create CNN model
-    model = create_cnn_model(in_width, in_heigth, in_channels, output_no)
+    # load pre-trained CNN model or create a new one 
+    if(os.path.exists(model_out_path)):
+        print("Model already exists, loading pre-trained model.")
+        model = tf.keras.models.load_model(model_out_path)
+        model_out_path = os.path.join(output_path, newModelName)
+    else:
+        print("Creating new model.")
+        model = create_cnn_model(in_width, in_heigth, in_channels, output_no)
 
     # change input data to cnn input format
     df_im = np.asarray(images)
@@ -324,7 +334,7 @@ if __name__ == '__main__':
     # define callbacks
     callbacks = [
         EarlyStopping(monitor='val_categorical_accuracy', mode = 'max', patience=30, verbose=1),
-        ReduceLROnPlateau(monitor='val_categorical_accuracy', mode = 'max', factor=0.025, patience=10, min_lr=0.000001, verbose=1),
+        ReduceLROnPlateau(monitor='val_categorical_accuracy', mode = 'max', factor=0.0025, patience=10, min_lr=0.000001, verbose=1),
         ModelCheckpoint(model_out_path, monitor='val_categorical_accuracy', mode = 'max', verbose=1, save_best_only=True, save_weights_only=False),
         tensorboard
     ]
