@@ -28,11 +28,11 @@ filenames = [] # list to store image names
 
 imgs_dir = './dataset'
 label_path = './dataset/dataset.csv'
-output_path = './model_out/model_out_center_it6_b4_200_200_dset_10000/' # output folder to save results of training
+output_path = './model_out/model_out_center_it6_b4_200_200_dset_12754/' # output folder to save results of training
 SAMPLE_DIFF_THRESHOLD = 0.05 # threshold when determing difference between positive and negative results
 
 epochNo = 250   # number of epochs per training, any number greater than dataset size will load whole dataset
-batchSize = 32   # batch size in one epoch
+batchSize = 4   # batch size in one epoch
 
 loadSize = 10000          # how much images and labels to load
 startIndexTestData = 0   # from which index to start loading images and labels
@@ -63,77 +63,6 @@ def read_csv(filepath):
             s = filename+','+categ
             result.append(s)
     return result
-
-# cuts Images to target width and height
-def cutImage(pilImg, targetW, targetH):
-
-    imgWidth, imgHeight = pilImg.size
-
-    widthCrop = imgWidth - targetW
-
-    leftPoint = widthCrop / 2
-    upperPoint = imgHeight - targetH
-    rightPoint = imgWidth - leftPoint
-    lowerPoint = imgHeight
-
-    pilImg = pilImg.crop((leftPoint, upperPoint, rightPoint, lowerPoint))
-
-    return pilImg
-
-# load images and labels
-def load_images_and_labels(images, imgs_dir, labels, label_path, loadSize, inputWidth = 100, inputHeight = 100, startIndex = 0):
-    print ('loading ' + str(loadSize) + ' images and labels... \n')
-
-    filenames = []
-    lines = read_csv(label_path)
-    lines.pop(0) # remove header
-    cnt = startIndex # loadSize counter, loads specific amount of dataset from specifix index
-
-    for line in lines:
-
-        if ((len(line) > 0)):
-            p1 = line.find(',')
-            fname = line[0:p1]
-            p1 = p1+1
-            image_path = os.path.join(imgs_dir, fname)
-            filenames.append(fname)
-
-            cat=line[p1:]
-
-            cat = cat.rstrip(',\n')
-            cat = cat.split(',')
-
-            cnt_cat = 0
-            for item in cat:
-                cat[cnt_cat] = float(item)
-                cnt_cat = cnt_cat + 1
-            cat = np.asarray(cat)
-
-            labels.append(cat)
-
-            img = Image.open(image_path)
-
-            img = cutImage(img, targetImgWidht, targetImgHeight)
-
-            img = img.resize((inputWidth, inputHeight), Image.ANTIALIAS)
-            img = ImageOps.grayscale(img)
-            img = np.asarray(img)
-            
-            img = img / 255
-
-            images.append(img)
-
-        cnt = cnt + 1
-
-        if(cnt - startIndex >= loadSize):
-            break
-
-    # shuffle dataset before training
-    #images, labels = shuffleDataset(images, labels)
-
-    print ('loading complete!\n')
-    
-    return [images, labels, filenames]
 
 # Load filenames and labels
 def load_filenames_and_labels(imgs_dir, label_path):
@@ -167,33 +96,6 @@ def load_filenames_and_labels(imgs_dir, label_path):
     print ('loading complete!\n')
     
     return [labels, filenames]
-
-# Train-Test Dataset split
-def train_test_dataset_split(images, labels):
-    test_images = []
-    test_labels = []
-
-    dataset_len = len(images)
-
-    test_len = int(dataset_len * 0.1)
-
-    # debug
-    indexes = []
-
-    for i in range(test_len):
-        n = random.randint(0, dataset_len - 1)
-
-        test_images.append(images[n])
-        test_labels.append(labels[n])
-
-        images.pop(n)
-        labels.pop(n)
-
-        dataset_len -= 1
-
-        indexes.append(n)
-
-    return [test_images, test_labels]
 
 # compare results 
 def compare_results(test_labels, predictions):
@@ -263,34 +165,6 @@ def write_test_to_csv(test_labels, predictions, predictions_acc):
 
     with open(os.path.join(output_path, 'test_predictions_results.csv'), 'w') as f:
         f.write(s)
-
-def shuffleDataset(imgs, labels):
-
-    indices = np.arange(len(imgs))
-    np.random.shuffle(indices)
-
-    imgs = np.asarray(imgs)[indices]
-    imgs = imgs.tolist()
-    labels = np.asarray(labels)[indices]
-    labels = labels.tolist()
-
-    return imgs, labels
-
-def reduceDataset(imgs, labels):
-
-    indexes = [random.randrange(0, len(imgs) - 1, 1) for i in range(int(len(imgs) / 7))]
-
-    tempImgs = []
-    tempLabels = []
-
-    for i in range(len(indexes)):
-        tempImgs.append(imgs[i])
-        tempLabels.append(labels[i])
-
-    imgs = tempImgs
-    labels = tempLabels
-
-    return imgs, labels
 
 # plot training results
 def plot_training_results(val_acc, val_loss, train_acc, train_loss):
