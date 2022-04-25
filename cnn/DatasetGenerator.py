@@ -6,22 +6,6 @@ import tensorflow as tf
 import numpy as np
 from PIL import Image, ImageOps
 
-# cuts Images to target width and height
-def cutImage(pilImg, targetW, targetH):
-
-    imgWidth, imgHeight = pilImg.size
-
-    widthCrop = imgWidth - targetW
-
-    leftPoint = widthCrop / 2
-    upperPoint = imgHeight - targetH
-    rightPoint = imgWidth - leftPoint
-    lowerPoint = imgHeight
-
-    pilImg = pilImg.crop((leftPoint, upperPoint, rightPoint, lowerPoint))
-
-    return pilImg
-
 class DatasetGenerator(tf.keras.utils.Sequence):
   
   def __init__(self, image_filenames, labels, batch_size):
@@ -39,6 +23,21 @@ class DatasetGenerator(tf.keras.utils.Sequence):
     batch_y = self.labels[idx * self.batch_size : (idx+1) * self.batch_size]
 
     return np.array([
-            np.asarray(ImageOps.grayscale(cutImage(Image.open(file_name), 600, 370).resize((200, 200), Image.ANTIALIAS))) / 255.0
+            np.asarray(ImageOps.grayscale(self.__cutimage__(Image.open(file_name), 600, 370).resize((200, 200), Image.ANTIALIAS))) / 255.0
                for file_name in batch_x]), np.array(batch_y)
 
+  # cuts Images to target width and height
+  def __cutimage__(self, pilImg, targetW, targetH):
+
+      imgWidth, imgHeight = pilImg.size
+
+      widthCrop = imgWidth - targetW
+
+      leftPoint = widthCrop / 2
+      upperPoint = imgHeight - targetH
+      rightPoint = imgWidth - leftPoint
+      lowerPoint = imgHeight
+
+      pilImg = pilImg.crop((leftPoint, upperPoint, rightPoint, lowerPoint))
+
+      return pilImg

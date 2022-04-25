@@ -233,7 +233,7 @@ if __name__ == '__main__':
     val_batch_generator = DatasetGenerator(val_filenames, val_labels, batchSize)
 
     # Create CNN model
-    model = create_cnn_model(in_width, in_heigth, in_channels, output_no)
+    #model = create_cnn_model(in_width, in_heigth, in_channels, output_no)
 
     # create TensorBoard
     tensorboard = TensorBoard(log_dir = output_path + "logs_img" + "\{}".format(time()))
@@ -247,43 +247,48 @@ if __name__ == '__main__':
     ]
 
     # CNN training
-    model_history = model.fit_generator(generator=training_batch_generator,
-                    steps_per_epoch = int(len(train_filenames) // batchSize),
-                    epochs=epochNo,
-                    validation_data=val_batch_generator,
-                    validation_steps = int(len(val_filenames) // batchSize),
-                    callbacks=callbacks,
-                    verbose=1)
+    #model_history = model.fit_generator(generator=training_batch_generator,
+    #                steps_per_epoch = int(len(train_filenames) // batchSize),
+    #                epochs=epochNo,
+    #                validation_data=val_batch_generator,
+    #                validation_steps = int(len(val_filenames) // batchSize),
+    #                callbacks=callbacks,
+    #                verbose=1)
 
     # Visualizing accuracy and loss of training the model
-    history_dict=model_history.history
-    print(history_dict.keys())
-    print(history_dict)
-    val_acc = history_dict['val_categorical_accuracy']
-    val_loss = history_dict['val_loss']
-    train_acc = history_dict['categorical_accuracy']
-    train_loss = history_dict['loss']
+    #history_dict=model_history.history
+    #print(history_dict.keys())
+    #print(history_dict)
+    #val_acc = history_dict['val_categorical_accuracy']
+    #val_loss = history_dict['val_loss']
+    #train_acc = history_dict['categorical_accuracy']
+    #train_loss = history_dict['loss']
 
     #plot accuracy and loss
-    plot_training_results(val_acc, val_loss, train_acc, train_loss)
+    #plot_training_results(val_acc, val_loss, train_acc, train_loss)
 
     # predict on test dataset
+
+    # load test dataset 
+    test_batch_generator = DatasetGenerator(val_filenames, val_labels, len(val_labels))
+    [testImages, testLabels] = test_batch_generator.__getitem__(0)
+
     # reshape test dataset to appropriate dimensions of input layer of the trained CNN
-    #df_im = np.asarray(test_images)
-    #df_im = df_im.reshape(df_im.shape[0], in_width, in_heigth, in_channels)
+    testImages = np.asarray(testImages)
+    testImages = testImages.reshape(testImages.shape[0], in_width, in_heigth, in_channels)
 
     # load newly trained model
-    #model = tf.keras.models.load_model(model_out_path)
+    model = tf.keras.models.load_model(model_out_path)
     
     # predict on unseen data
-    #predictions = model.predict(df_im, verbose = 1)
+    predictions = model.predict(testImages, verbose = 1)
 
     # compare results between labeled test set and predictions
-    #test_labels = np.asarray(test_labels)
-    #predictions_acc = compare_results(test_labels, predictions)
+    testLabels = np.asarray(testLabels)
+    predictions_acc = compare_results(testLabels, predictions)
 
     # write test results in .csv file
-    #write_test_to_csv(test_labels, predictions, predictions_acc)
+    write_test_to_csv(testLabels, predictions, predictions_acc)
 
     script_end = datetime.now()
     print (script_end - script_start)
