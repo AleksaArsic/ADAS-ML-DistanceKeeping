@@ -3,10 +3,11 @@
                     Names will be enumerated with consecutive numbers.
 '''
 import os
+from datetime import datetime
 
-startEnumeration = 53540 # from which number to start enumeration of new img names
+startEnumeration = 71400 # from which number to start enumeration of new img names
 imgExstension = '.jpg'   # image extension to look for on disk
-imgPath = '..\camera_sensors_output\center_town03_addition2_3' # path to folder containing images to rename
+imgPath = '..\camera_sensors_output\center_town06_addition2_3' # path to folder containing images to rename
 leadingZeros = 6 # indicates how many leading zeros to add to new image names
 
 
@@ -34,6 +35,10 @@ def renameImages(imgPath):
 
 
 if __name__ == "__main__":
+    script_start = datetime.now()
 
     # rename images 
     renameImages(imgPath)
+
+    script_end = datetime.now()
+    print(script_end - script_start)
