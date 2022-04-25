@@ -3,15 +3,12 @@
     ADAS-ML-DistanceKeeping software
 '''
 import os
-import random
-from turtle import up
 import numpy as np
 import tensorflow as tf 
 import matplotlib.pyplot as plt
 import datetime
 from datetime import datetime
 from time import time
-from PIL import Image, ImageOps
 from sklearn.model_selection import train_test_split 
 from tensorflow.keras.callbacks import TensorBoard, ReduceLROnPlateau
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
@@ -28,13 +25,12 @@ filenames = [] # list to store image names
 
 imgs_dir = './dataset'
 label_path = './dataset/dataset.csv'
-output_path = './model_out/model_out_center_it6_b4_200_200_dset_12754/' # output folder to save results of training
+output_path = './model_out/model_out_center_it6_b4_200_200_dset_16568/' # output folder to save results of training
 SAMPLE_DIFF_THRESHOLD = 0.05 # threshold when determing difference between positive and negative results
 
 epochNo = 250   # number of epochs per training, any number greater than dataset size will load whole dataset
 batchSize = 4   # batch size in one epoch
 
-loadSize = 10000          # how much images and labels to load
 startIndexTestData = 0   # from which index to start loading images and labels
 
 targetImgWidht = 600
@@ -66,7 +62,7 @@ def read_csv(filepath):
 
 # Load filenames and labels
 def load_filenames_and_labels(imgs_dir, label_path):
-    print ('loading ' + str(loadSize) + ' filenames and labels... \n')
+    print ('loading filenames and labels... \n')
 
     filenames = []
     lines = read_csv(label_path)
@@ -215,7 +211,6 @@ if __name__ == '__main__':
     model_out_path = os.path.join(output_path, model_name)
 
     # load images and labels for training
-    lSize = loadSize
     [labels, filenames] = load_filenames_and_labels(imgs_dir, label_path)
 
     # shufle filenames and labels
@@ -233,7 +228,7 @@ if __name__ == '__main__':
     val_batch_generator = DatasetGenerator(val_filenames, val_labels, batchSize)
 
     # Create CNN model
-    #model = create_cnn_model(in_width, in_heigth, in_channels, output_no)
+    model = create_cnn_model(in_width, in_heigth, in_channels, output_no)
 
     # create TensorBoard
     tensorboard = TensorBoard(log_dir = output_path + "logs_img" + "\{}".format(time()))
@@ -247,25 +242,25 @@ if __name__ == '__main__':
     ]
 
     # CNN training
-    #model_history = model.fit_generator(generator=training_batch_generator,
-    #                steps_per_epoch = int(len(train_filenames) // batchSize),
-    #                epochs=epochNo,
-    #                validation_data=val_batch_generator,
-    #                validation_steps = int(len(val_filenames) // batchSize),
-    #                callbacks=callbacks,
-    #                verbose=1)
+    model_history = model.fit_generator(generator=training_batch_generator,
+                    steps_per_epoch = int(len(train_filenames) // batchSize),
+                    epochs=epochNo,
+                    validation_data=val_batch_generator,
+                    validation_steps = int(len(val_filenames) // batchSize),
+                    callbacks=callbacks,
+                    verbose=1)
 
     # Visualizing accuracy and loss of training the model
-    #history_dict=model_history.history
-    #print(history_dict.keys())
-    #print(history_dict)
-    #val_acc = history_dict['val_categorical_accuracy']
-    #val_loss = history_dict['val_loss']
-    #train_acc = history_dict['categorical_accuracy']
-    #train_loss = history_dict['loss']
+    history_dict=model_history.history
+    print(history_dict.keys())
+    print(history_dict)
+    val_acc = history_dict['val_categorical_accuracy']
+    val_loss = history_dict['val_loss']
+    train_acc = history_dict['categorical_accuracy']
+    train_loss = history_dict['loss']
 
     #plot accuracy and loss
-    #plot_training_results(val_acc, val_loss, train_acc, train_loss)
+    plot_training_results(val_acc, val_loss, train_acc, train_loss)
 
     # predict on test dataset
 
