@@ -10,13 +10,13 @@ safeAccThreshold = 0.1      # threshold for which safeAcc label is considered as
 # custom binary accuracy metric definition
 def adapted_binary_accuracy(y_true, y_pred):
     
-    multiLabelDiff = abs(y_true[0:multiLabelEndId] - y_pred[0:multiLabelEndId])
-    safeAccDiff = abs(y_true[-1] - y_pred[-1])
+    multiLabelDiff = abs(y_true[:, 0:multiLabelEndId] - y_pred[:, 0:multiLabelEndId])
+    safeAccDiff = abs(y_true[:, -1] - y_pred[:, -1])
     
-    multiLabelTrue = tf.cast(tf.math.count_nonzero(multiLabelDiff <= multilabelThreshold, axis=0), tf.int32)
+    multiLabelTrue = tf.cast(tf.math.count_nonzero(multiLabelDiff <= multilabelThreshold), tf.int32)
     safeAccTrue = tf.cast(tf.math.count_nonzero(safeAccDiff <= safeAccThreshold), tf.int32) # can't use if statements in custom metrics, tf.math.count_nonzero as replacement
-    
-    return (multiLabelTrue + safeAccTrue) / len(y_pred) # types of addition in keras must be the same hence the tf.cast in calculations
+
+    return (multiLabelTrue + safeAccTrue) / (y_pred.numpy().shape[0] * y_pred.numpy().shape[1]) # types of addition in keras must be the same hence the tf.cast in calculations
     
 
 # creates and returns convolutional neural network model

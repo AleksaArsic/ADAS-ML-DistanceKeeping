@@ -207,6 +207,9 @@ if __name__ == '__main__':
     #if len(physical_devices) > 0:
     #    tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
+    # Allows eager execution and use of np arrays inside custom metrics
+    tf.config.run_functions_eagerly(True)
+
     # model output destination
     model_out_path = os.path.join(output_path, model_name)
 
