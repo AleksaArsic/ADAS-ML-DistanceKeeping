@@ -25,7 +25,7 @@ filenames = [] # list to store image names
 
 imgs_dir = './dataset'
 label_path = './dataset/dataset.csv'
-output_path = './model_out/model_out_center_it6_b4_200_200_dset_16568/' # output folder to save results of training
+output_path = './model_out/model_out_center_it6_b4_200_200_dset_16568_custom_metrics/' # output folder to save results of training
 SAMPLE_DIFF_THRESHOLD = 0.05 # threshold when determing difference between positive and negative results
 
 epochNo = 250   # number of epochs per training, any number greater than dataset size will load whole dataset
@@ -235,9 +235,9 @@ if __name__ == '__main__':
 
     # define callbacks
     callbacks = [
-        EarlyStopping(monitor='val_categorical_accuracy', mode = 'max', patience=30, verbose=1),
-        ReduceLROnPlateau(monitor='val_categorical_accuracy', mode = 'max', factor=0.025, patience=10, min_lr=0.000001, verbose=1),
-        ModelCheckpoint(model_out_path, monitor='val_categorical_accuracy', mode = 'max', verbose=1, save_best_only=True, save_weights_only=False),
+        EarlyStopping(monitor='val_adapted_binary_accuracy', mode = 'max', patience=30, verbose=1),
+        ReduceLROnPlateau(monitor='val_adapted_binary_accuracy', mode = 'max', factor=0.025, patience=10, min_lr=0.000001, verbose=1),
+        ModelCheckpoint(model_out_path, monitor='val_adapted_binary_accuracy', mode = 'max', verbose=1, save_best_only=True, save_weights_only=False),
         tensorboard
     ]
 
@@ -254,9 +254,9 @@ if __name__ == '__main__':
     history_dict=model_history.history
     print(history_dict.keys())
     print(history_dict)
-    val_acc = history_dict['val_categorical_accuracy']
+    val_acc = history_dict['val_adapted_binary_accuracy']
     val_loss = history_dict['val_loss']
-    train_acc = history_dict['categorical_accuracy']
+    train_acc = history_dict['adapted_binary_accuracy']
     train_loss = history_dict['loss']
 
     #plot accuracy and loss
