@@ -55,6 +55,7 @@ from scripts.DisplayManager import DisplayManager
 from scripts.RGBCamera import RGBCamera
 from scripts.SimulationData import SimulationData
 from cnn.cnn import create_cnn_model
+from util.PIDLongitudinalController import PIDLongitudinalController
 
 #################################################################################################################
 datasetSavePath = 'camera_sensors_output/center_town01_4' # Path where images and .csv file will be saved in training mode
@@ -63,15 +64,16 @@ datasetSavePath = 'camera_sensors_output/center_town01_4' # Path where images an
 #################################################################################################################
 # CNN parameters
 model_name = 'CNN_distanceKeeping.h5'
-model_path = 'cnn/model_out/model_out_center_it4_b4_200_200_lr_0005/'
+#model_path = 'cnn/model_out/model_out_center_it4_b4_200_200_lr_0005/'
+model_path = 'cnn/model_out/model_out_center_it6_b4_200_200_dset_16568_custom_metrics/'
 in_width = 200      # width of the input in the CNN model
 in_heigth = 200     # heigth of the input in the CNN model
 in_channels = 1     # number of input channels to the CNN model 
+output_no = 5       # number of outputs of the CNN model
 #################################################################################################################
 
 #################################################################################################################
 # constants
-ms_to_kmh_ratio = 3600/1000 # m/s to km/h ratio
 #################################################################################################################
 
 #################################################################################################################
@@ -79,7 +81,8 @@ ms_to_kmh_ratio = 3600/1000 # m/s to km/h ratio
 ego_spawn_point = 2 # ego vehicle initial spawn point
 ego_location_spawn = carla.Location(x=586.856873, y=-17.063015, z=0.300000) #ego vehicle initial spawn location
 ego_transform_spawn = carla.Rotation(pitch=0.000000, yaw=-180.035, roll=0.000000) # ego vehicle initial spawn rotation
-ego_speed_limit = 80 # ego vehicle speed limit in km/h
+ego_speed_limit = 70 # ego vehicle speed limit in km/h
+ego_keep_distance_speed = 0 # store vehicle speed when neural network predicts that the vehicle should keep distance
 #################################################################################################################
 
 #################################################################################################################
@@ -139,26 +142,57 @@ def spawn_vehicles_around_ego_vehicles(client, world, ego_vehicle, radius, spawn
         tm.distance_to_leading_vehicle(v, 0.5)
         tm.vehicle_percentage_speed_difference(v, -20)
 
-def ego_vehicle_control(vehicle, cnn_predictions):
+def ego_vehicle_control(vehicle, cnn_predictions, pidLongitudinalController):
+    # variable to store current speed when neural network predicts that 
+    # ego vehicle should keep distance to the leading vehicle
+    global ego_keep_distance_speed
+
     # extract cnn predictions
-    cnn_throttle = 1 - cnn_predictions[0][4]
+    lSafeToAcc = cnn_predictions[0][4]
 
-    # control of steering for scenario no 1
-    # at specific location appyl steering to stay in lane
-    abs_vector = math.sqrt(vehicle.get_velocity().x ** 2 + vehicle.get_velocity().y ** 2 + vehicle.get_velocity().z ** 2)
-    velocity_kmh = abs(abs_vector * ms_to_kmh_ratio)
+    velocity_kmh = pidLongitudinalController.get_speed(vehicle)
 
-    vehicle_loc_x = vehicle.get_location().x 
+    # check lSafeToAcc parameter
+    # if neural network predicts that vehicle should accelerate, acceleration should be possible if within road limit
+    # if neural netowrk predicts that vehicle should keep distance, the speed should be stay the same as current speed
+    # if neural network predicts that vehicle should brake, the speed should decrease to the point where neural network 
+    #       predicts that it should keep distance or possibly accelerate
+    if(lSafeToAcc <= 0.4): 
+        # it is safe to accelerate, accelerate within road limit
+        pid_control = pidLongitudinalController.run_step(ego_speed_limit)
+        print("Accelerate " + str(pid_control))
+    elif (lSafeToAcc > 0.4 and lSafeToAcc < 0.6): 
+        # keep distance from leading vehicle, keep current speed
+        # TO-DO: save current speed that ego vehicle should maintain to keep distance from leading vehicle
+        pid_control = pidLongitudinalController.run_step(velocity_kmh)
+        print("Keep distance " + str(pid_control))
+    else: 
+        # it is not safe to accelerate, brake
+        pid_control = pidLongitudinalController.run_step(velocity_kmh - 10)
+        print("Brake " + str(pid_control))
+    
+    print("Speed: " + str(velocity_kmh))
 
+    # if vehicle velocity is less than road limit apply throttle or brake and steer
     if(velocity_kmh < ego_speed_limit):
+        
+        # control of steering for town06
+        # at specific location appyl steering to stay in lane
+        vehicle_loc_x = vehicle.get_location().x 
+
         steer_in = 0.0
 
         # if location x <= 140 and x > 139 add some steering to the left to keep in lane
         if((vehicle_loc_x <= 140 and vehicle_loc_x > 139)):
             steer_in = -0.085
 
-        # apply control obtained trough CNN
-        vehicle.apply_control(carla.VehicleControl(throttle = cnn_throttle, steer = steer_in))
+        # apply control obtained trough PID Longitudinal Controller based on the outputs of the CNN
+        if(pid_control >= 0.0):
+            vehicle.apply_control(carla.VehicleControl(throttle = pid_control, steer = steer_in))
+            print("Throttle")
+        else:
+            vehicle.apply_control(carla.VehicleControl(brake = abs(pid_control), steer = steer_in))
+            print("Brake")
     else:
         vehicle.apply_control(carla.VehicleControl(throttle = 0, steer = 0))
 
@@ -302,7 +336,7 @@ def run_simulation(args, client):
         #vehicle = world.spawn_actor(bp, ego_transform)
         
         vehicle_list.append(vehicle)
-        vehicle.set_autopilot(True)
+        vehicle.set_autopilot(False)
 
         # Display Manager organize all the sensors an its display in a window
         # If can easily configure the grid and the total window size
@@ -319,10 +353,13 @@ def run_simulation(args, client):
 
         if args.training == 'simulation':
             # create CNN model
-            #cnn_model = create_cnn_model(in_width, in_heigth, 1, 5)
+            cnn_model = create_cnn_model(in_width, in_heigth, in_channels, output_no)
             # create CNN model
-            cnn_model = tf.keras.models.load_model(os.path.join(model_path, model_name))
-            #cnn_model.load_weights(os.path.join(model_path, model_name))
+            #cnn_model = tf.keras.models.load_model(os.path.join(model_path, model_name))
+            cnn_model.load_weights(os.path.join(model_path, model_name))
+
+            # create PIDLongitudinalController for ego vehicle 'vehicle'
+            pidLongitudinalController = PIDLongitudinalController(vehicle)
 
         # array to store current RGBCamera frame to be sent to CNN
         current_frame = []
@@ -354,7 +391,7 @@ def run_simulation(args, client):
                 cnn_predictions = cnn_processing(cnn_model, current_frame)
 
                 # TO-DO: control the ego vehicle based on predictions
-                ego_vehicle_control(vehicle, cnn_predictions)
+                ego_vehicle_control(vehicle, cnn_predictions, pidLongitudinalController)
 
                 # DEBUG: print predictions
                 cnn_predictions = np.round(cnn_predictions, decimals = 3)
