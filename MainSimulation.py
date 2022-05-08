@@ -74,6 +74,8 @@ output_no = 5       # number of outputs of the CNN model
 
 #################################################################################################################
 # constants
+gSafeToAccThreshold = 0.4
+gNotSafeToAccThreshold = 0.6
 #################################################################################################################
 
 #################################################################################################################
@@ -83,6 +85,7 @@ ego_location_spawn = carla.Location(x=586.856873, y=-17.063015, z=0.300000) #ego
 ego_transform_spawn = carla.Rotation(pitch=0.000000, yaw=-180.035, roll=0.000000) # ego vehicle initial spawn rotation
 ego_speed_limit = 70 # ego vehicle speed limit in km/h
 ego_keep_distance_speed = 0 # store vehicle speed when neural network predicts that the vehicle should keep distance
+ego_keep_distance_saved = False # store boolean whether ego_keep_distance_speed is saved or not
 #################################################################################################################
 
 #################################################################################################################
@@ -146,6 +149,7 @@ def ego_vehicle_control(vehicle, cnn_predictions, pidLongitudinalController):
     # variable to store current speed when neural network predicts that 
     # ego vehicle should keep distance to the leading vehicle
     global ego_keep_distance_speed
+    global ego_keep_distance_saved
 
     # extract cnn predictions
     lSafeToAcc = cnn_predictions[0][4]
@@ -157,18 +161,36 @@ def ego_vehicle_control(vehicle, cnn_predictions, pidLongitudinalController):
     # if neural netowrk predicts that vehicle should keep distance, the speed should be stay the same as current speed
     # if neural network predicts that vehicle should brake, the speed should decrease to the point where neural network 
     #       predicts that it should keep distance or possibly accelerate
-    if(lSafeToAcc <= 0.4): 
+    if(lSafeToAcc <= gSafeToAccThreshold): 
         # it is safe to accelerate, accelerate within road limit
         pid_control = pidLongitudinalController.run_step(ego_speed_limit)
+
+        # if ego_keep_distance_speed is saved in previous iterations and state changed to state when 
+        # neural network predicted that it is safe to accelerate, change boolean ego_keep_distance_saved to
+        # False
+        if (ego_keep_distance_saved == True):
+            ego_keep_distance_saved = False
+
         print("Accelerate " + str(pid_control))
-    elif (lSafeToAcc > 0.4 and lSafeToAcc < 0.6): 
+    elif (lSafeToAcc > gSafeToAccThreshold and lSafeToAcc < gNotSafeToAccThreshold): 
         # keep distance from leading vehicle, keep current speed
         # TO-DO: save current speed that ego vehicle should maintain to keep distance from leading vehicle
-        pid_control = pidLongitudinalController.run_step(velocity_kmh)
+        if(ego_keep_distance_saved == False):
+            ego_keep_distance_saved = True
+            ego_keep_distance_speed = velocity_kmh - 5 # maintain a speed that is a little bit less than current speed
+        
+        pid_control = pidLongitudinalController.run_step(ego_keep_distance_speed)
         print("Keep distance " + str(pid_control))
+        print("Saved speed " + str(ego_keep_distance_speed))
     else: 
         # it is not safe to accelerate, brake
-        pid_control = pidLongitudinalController.run_step(velocity_kmh - 10)
+        pid_control = pidLongitudinalController.run_step(velocity_kmh - 5)
+
+        # if ego_keep_distance_saved is True there is no need to restore it to False
+        # This is benefitial in a way that if the vehicle came to a complete stop
+        # because leading vehicle is stopped, we want it to begin moving after
+        # leading vehicle started moving again
+
         print("Brake " + str(pid_control))
     
     print("Speed: " + str(velocity_kmh))
