@@ -10,7 +10,7 @@ class SimpleMovingAverage:
     def __init__(self, bufferSize, dataSize):
         self.bufferSize = bufferSize
         self.dataSize = dataSize
-        self.dataBuffer = np.zeros(shape=(self.dataSize, self.bufferSize))
+        self.dataBuffer = np.zeros(shape=(self.bufferSize, self.dataSize))
         self.smaBuffer = np.zeros(shape=(self.dataSize))
 
     def addToBuffer(self, data):
@@ -24,7 +24,7 @@ class SimpleMovingAverage:
         
         lSMABuffer = np.transpose(self.dataBuffer)
 
-        for i in range(self.bufferSize):
+        for i in range(self.dataSize):
             sma = np.sum(lSMABuffer[i]) / self.bufferSize
             self.smaBuffer[i] = sma
 

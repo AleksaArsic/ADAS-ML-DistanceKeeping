@@ -56,6 +56,7 @@ from scripts.RGBCamera import RGBCamera
 from scripts.SimulationData import SimulationData
 from cnn.cnn import create_cnn_model
 from util.PIDLongitudinalController import PIDLongitudinalController
+from util.SimpleMovingAverage import SimpleMovingAverage
 
 #################################################################################################################
 datasetSavePath = 'camera_sensors_output/center_town01_4' # Path where images and .csv file will be saved in training mode
@@ -65,7 +66,7 @@ datasetSavePath = 'camera_sensors_output/center_town01_4' # Path where images an
 # CNN parameters
 model_name = 'CNN_distanceKeeping.h5'
 #model_path = 'cnn/model_out/model_out_center_it4_b4_200_200_lr_0005/'
-model_path = 'cnn/model_out/model_out_center_it6_b4_200_200_dset_16568_custom_metrics/'
+model_path = 'cnn/model_out/model_out_center_it6_b4_200_200_dset_16568_final/'
 in_width = 200      # width of the input in the CNN model
 in_heigth = 200     # heigth of the input in the CNN model
 in_channels = 1     # number of input channels to the CNN model 
@@ -76,6 +77,9 @@ output_no = 5       # number of outputs of the CNN model
 # constants
 gSafeToAccThreshold = 0.4
 gNotSafeToAccThreshold = 0.6
+gBrakeKMHStep = 2.5
+gKeepDistanceSpeedSubtract = 5
+gSMABufferLen = 5
 #################################################################################################################
 
 #################################################################################################################
@@ -152,7 +156,7 @@ def ego_vehicle_control(vehicle, cnn_predictions, pidLongitudinalController):
     global ego_keep_distance_saved
 
     # extract cnn predictions
-    lSafeToAcc = cnn_predictions[0][4]
+    lSafeToAcc = cnn_predictions[4]
 
     velocity_kmh = pidLongitudinalController.get_speed(vehicle)
 
@@ -174,24 +178,25 @@ def ego_vehicle_control(vehicle, cnn_predictions, pidLongitudinalController):
         print("Accelerate " + str(pid_control))
     elif (lSafeToAcc > gSafeToAccThreshold and lSafeToAcc < gNotSafeToAccThreshold): 
         # keep distance from leading vehicle, keep current speed
-        # TO-DO: save current speed that ego vehicle should maintain to keep distance from leading vehicle
         if(ego_keep_distance_saved == False):
             ego_keep_distance_saved = True
-            ego_keep_distance_speed = velocity_kmh - 5 # maintain a speed that is a little bit less than current speed
+            ego_keep_distance_speed = velocity_kmh - gKeepDistanceSpeedSubtract # maintain a speed that is a little bit less than current speed
         
         pid_control = pidLongitudinalController.run_step(ego_keep_distance_speed)
         print("Keep distance " + str(pid_control))
         print("Saved speed " + str(ego_keep_distance_speed))
     else: 
         # it is not safe to accelerate, brake
-        pid_control = pidLongitudinalController.run_step(velocity_kmh - 5)
+        pid_control = pidLongitudinalController.run_step(velocity_kmh - gBrakeKMHStep)
+
+        # check different thresholds of not safeToAcc and apply breaking accordingly 
 
         # if ego_keep_distance_saved is True there is no need to restore it to False
         # This is benefitial in a way that if the vehicle came to a complete stop
         # because leading vehicle is stopped, we want it to begin moving after
         # leading vehicle started moving again
 
-        print("Brake " + str(pid_control))
+        print("Brake " + str(pid_control * lSafeToAcc))
     
     print("Speed: " + str(velocity_kmh))
 
@@ -213,7 +218,7 @@ def ego_vehicle_control(vehicle, cnn_predictions, pidLongitudinalController):
             vehicle.apply_control(carla.VehicleControl(throttle = pid_control, steer = steer_in))
             print("Throttle")
         else:
-            vehicle.apply_control(carla.VehicleControl(brake = abs(pid_control), steer = steer_in))
+            vehicle.apply_control(carla.VehicleControl(brake = abs(pid_control) * lSafeToAcc, steer = steer_in))
             print("Brake")
     else:
         vehicle.apply_control(carla.VehicleControl(throttle = 0, steer = 0))
@@ -291,7 +296,7 @@ def cutImage(img, targetW, targetH):
     #crop_img = img[y:y+h, x:x+w]
     return img
 
-def cnn_processing(cnn_model, current_frame):
+def cnn_processing(cnn_model, current_frame, smaPredictions):
     # cut first 350 pixels in all directions as not whole image is needed for processing
     # processed image size is (targetImgWidth x targetImageHeight) pixels
     current_frame = cutImage(current_frame, targetImgWidth, targetImgHeight)
@@ -312,8 +317,9 @@ def cnn_processing(cnn_model, current_frame):
     cnn_predictions = cnn_model.predict(cnn_img, verbose = 0)
 
     # TO-DO: apply moving average on cnn predictions to minimize great oscillations in predicted values.
+    smaPredictions.addToBuffer(cnn_predictions)
 
-    return cnn_predictions
+    return smaPredictions.getSMABuffer()
 
 def run_simulation(args, client):
     """This function performed one test run using the args parameters
@@ -383,6 +389,8 @@ def run_simulation(args, client):
             # create PIDLongitudinalController for ego vehicle 'vehicle'
             pidLongitudinalController = PIDLongitudinalController(vehicle)
 
+            smaPredictions = SimpleMovingAverage(gSMABufferLen, output_no)
+
         # array to store current RGBCamera frame to be sent to CNN
         current_frame = []
 
@@ -410,9 +418,9 @@ def run_simulation(args, client):
             # check if simulation loaded by checking dimension of current_frame
             if args.training == 'simulation' and current_frame.shape[0] != 0:
                 # process current RGBCamera frame trough CNN
-                cnn_predictions = cnn_processing(cnn_model, current_frame)
+                cnn_predictions = cnn_processing(cnn_model, current_frame, smaPredictions)
 
-                # TO-DO: control the ego vehicle based on predictions
+                # control ego vehicle based on predictions
                 ego_vehicle_control(vehicle, cnn_predictions, pidLongitudinalController)
 
                 # DEBUG: print predictions
