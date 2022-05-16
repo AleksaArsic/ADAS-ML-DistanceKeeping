@@ -6,9 +6,10 @@ except ImportError:
     raise RuntimeError('cannot import pygame, make sure pygame package is installed')
     
 class DisplayManager:
-    def __init__(self, grid_size, window_size):
+    def __init__(self, hud, grid_size, window_size):
         pygame.init()
         pygame.font.init()
+        self.hud = hud
         self.display = pygame.display.set_mode(window_size, pygame.HWSURFACE | pygame.DOUBLEBUF)
 
         self.grid_size = grid_size
@@ -38,6 +39,8 @@ class DisplayManager:
         for s in self.sensor_list:
             s.render()
 
+        self.hud.render(self.display)
+
         pygame.display.flip()
 
     def destroy(self):
@@ -47,3 +50,5 @@ class DisplayManager:
     def render_enabled(self):
         return self.display != None
 
+    def get_display(self):
+        return self.display

@@ -11,7 +11,7 @@ from scripts.RGBCamera import RGBCamera
 from scripts.PIDLongitudinalController import PIDLongitudinalController
 
 class SimScenarioRunner:
-    def __init__(self, client, spawnMatrix, egoSpawnId):
+    def __init__(self, client, displayManager, spawnMatrix, egoSpawnId):
         
         self.scenarioId = 0 # by default scenarioId is 0
 
@@ -22,11 +22,7 @@ class SimScenarioRunner:
         self.cam = None
         self.pidLongitudinalController = None
 
-        # Display Manager organize all the sensors an its display in a window
-        # If can easily configure the grid and the total window size
-        self.simWidth = 1280
-        self.simHeight = 720
-        self.display_manager = DisplayManager(grid_size=[1, 1], window_size=[self.simWidth, self.simHeight])
+        self.display_manager = displayManager
 
         # format:
         # [[scen1x, scen1y], [scen2x, scen2y], ...]
@@ -35,9 +31,6 @@ class SimScenarioRunner:
         self.egoSpawnId = egoSpawnId # list of indexes of spawn points of ego vehicle for each scenario 
 
         self.initScenario(self.scenarioId) # initialize first scenario
-
-    def getDisplayManager(self):
-        return self.display_manager
 
     def getPIDLongitudinalController(self):
         return self.pidLongitudinalController

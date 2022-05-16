@@ -47,15 +47,14 @@ except ImportError:
 """
 from scripts.CustomTimer import CustomTimer
 from scripts.DisplayManager import DisplayManager
-from scripts.RGBCamera import RGBCamera
 from scripts.SimulationData import SimulationData
-from scripts.PIDLongitudinalController import PIDLongitudinalController
 from scripts.SimpleMovingAverage import SimpleMovingAverage
 from scripts.SimScenarioRunner import SimScenarioRunner
+from scripts.HUD import HUD
 from cnn.cnn import create_cnn_model
 
 #################################################################################################################
-datasetSavePath = 'camera_sensors_output/center_town01_4' # Path where images and .csv file will be saved in training mode
+datasetSavePath = 'camera_sensors_output/center_town04_test' # Path where images and .csv file will be saved in training mode
 #################################################################################################################
 
 #################################################################################################################
@@ -314,14 +313,19 @@ def run_simulation(args, client):
             settings.fixed_delta_seconds = 0.05
             world.apply_settings(settings)
 
+        # initialize HUD
+        hud = HUD(args.width, args.height)
+        world.on_tick(hud.on_world_tick)
+
+        # Display Manager organize all the sensors an its display in a window
+        # If can easily configure the grid and the total window size
+        display_manager = DisplayManager(hud, grid_size=[1, 1], window_size=[args.width, args.height])
+
         # Instanciating SimulationData in which we will save vehicle state if 'R' is pressed
         sim_data = SimulationData()
 
         # initialize scenario runner
-        sim_runner = SimScenarioRunner(client, gSpawnMatrix, gEgoSpawnId)
-
-        # get display manageer from sim_runner
-        display_manager = sim_runner.getDisplayManager()
+        sim_runner = SimScenarioRunner(client, display_manager, gSpawnMatrix, gEgoSpawnId)
 
         # get ego vehicle from sim_runner
         vehicle = sim_runner.getEgoVehicle()
@@ -341,11 +345,20 @@ def run_simulation(args, client):
         # array to store current RGBCamera frame to be sent to CNN
         current_frame = []
 
-        #Simulation loop
+        # Simulation loop
         call_exit = False
 
         scenarioId = 0
         while True:
+            # Carla Tick
+            if args.sync:
+                world.tick()
+                hud.tick(world, pygame.time.Clock())
+            else:
+                world.wait_for_tick()
+
+            # Render received data
+            display_manager.render()
 
             # debug
             # print vehicle position
@@ -363,15 +376,6 @@ def run_simulation(args, client):
                     vehicle_list = sim_runner.getVehicleList()
                 else:
                     break # break simulation loop
-
-            # Carla Tick
-            if args.sync:
-                world.tick()
-            else:
-                world.wait_for_tick()
-
-            # Render received data
-            display_manager.render()
 
             # get latest frame from RGBCamera
             current_frame = np.asarray(sim_runner.getRGBCamera().current_frame)
