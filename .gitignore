@@ -210,6 +210,7 @@ yolov3/weights/
 
 # cnn model training output folder
 cnn/model_out/
+!cnn/model_out_center_it6_b4_200_200_dset_16568_final/
 
 # CARLA camera sensor output folder
 camera_sensors_output/

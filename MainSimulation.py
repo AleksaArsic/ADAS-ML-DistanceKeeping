@@ -11,7 +11,6 @@ import sys
 
 import cv2
 import tensorflow as tf
-from PIL import Image, ImageOps
 
 try:
     sys.path.append(glob.glob('../carla/dist/carla-*%d.%d-%s.egg' % (
@@ -23,11 +22,7 @@ except IndexError:
 
 import carla
 import argparse
-import random
-import time
 import numpy as np
-import math
-import datetime
 
 try:
     import pygame
@@ -54,9 +49,10 @@ from scripts.CustomTimer import CustomTimer
 from scripts.DisplayManager import DisplayManager
 from scripts.RGBCamera import RGBCamera
 from scripts.SimulationData import SimulationData
+from scripts.PIDLongitudinalController import PIDLongitudinalController
+from scripts.SimpleMovingAverage import SimpleMovingAverage
+from scripts.SimScenarioRunner import SimScenarioRunner
 from cnn.cnn import create_cnn_model
-from util.PIDLongitudinalController import PIDLongitudinalController
-from util.SimpleMovingAverage import SimpleMovingAverage
 
 #################################################################################################################
 datasetSavePath = 'camera_sensors_output/center_town01_4' # Path where images and .csv file will be saved in training mode
@@ -80,12 +76,6 @@ gNotSafeToAccThreshold = 0.6
 gBrakeKMHStep = 2.5
 gKeepDistanceSpeedSubtract = 5
 gSMABufferLen = 5
-gEgoSpawnIndex = [120] # indexes of spawn points in respect to the scenario
-gScenario01 = 0 # scenario01 reference
-gScenario02 = 1 # scenario02 reference
-gScenario03 = 2 # scenario03 reference
-gScenario04 = 3 # scenario04 reference
-gScenario05 = 4 # scenario05 reference
 #################################################################################################################
 
 #################################################################################################################
@@ -118,85 +108,15 @@ targetImgHeight = 370    # image heigth on which CNN was trained
 gScenario01VehPos = [[], []] # empty road
 gScenario02VehPos = [[0, -3, 3, 7, 0, -3, 3, 7], [-60, -40, -35, -30, -40, -15, -20, -15]] # ongoing traffic 
 gScenario03VehPos = [[-3, 3, 7, -3, 3, 7], [-40, -35, -30, -15, -20, -15]] # ongoing traffic, no leading vehicle
+
+# gSpawnMatrix 
+# passed as parameter to SimScenarioRunner class
+gSpawnMatrix = [gScenario01VehPos, gScenario02VehPos, gScenario03VehPos]
+
+# gEgoSpawnId 
+# passed as parameter to SimScenarioRunner class
+gEgoSpawnId = [120, 120, 120]
 #################################################################################################################
-
-def SpawnScenarioVehicles(client, world, vehPosX, vehPosY):
-    vehicle_bps = world.get_blueprint_library().filter('vehicle.*.*')   # don't specify the type of vehicle
-    vehicle_bps = [x for x in vehicle_bps if int(x.get_attribute('number_of_wheels')) == 4]  # only choose car with 4 wheels
-
-    vehicle_list = []  # keep the spawned vehicle in vehicle_list, because we need to link them with traffic_manager
-
-    spawn_points = world.get_map().get_spawn_points()
-
-    for i in range(len(vehPosX)):  # generate the free vehicle
-        transform = spawn_points[gEgoSpawnIndex[gScenario01]] 
-        location = carla.Location(transform.location.x + vehPosX[i], transform.location.y + vehPosY[i], transform.location.z) 
-        point = carla.Transform(location, transform.rotation) 
-        vehicle_bp = np.random.choice(vehicle_bps)
-        try:
-            vehicle = world.spawn_actor(vehicle_bp, point)
-            vehicle_list.append(vehicle)
-        except:
-            print('failed')  # if failed, print the hints.
-            pass
-
-    # Add vehicles to TM
-    if (len(vehicle_list)):
-        tm = client.get_trafficmanager()  # create a TM object
-        tm.global_percentage_speed_difference(45.0)  # set the global speed limitation
-        tm_port = tm.get_port()  # get the port of tm. we need add vehicle to tm by this port
-        for v in vehicle_list:  # set every vehicle's mode
-            v.set_autopilot(True, tm_port)  # you can get those functions detail in carla document
-            tm.auto_lane_change(v,False)    # disable auto lane change
-            tm.distance_to_leading_vehicle(v, 0.5)  # leave safety distance to leading vehicle 
-            tm.vehicle_percentage_speed_difference(v, -10) # drive 20 percent faster than current speed limit
-
-    return vehicle_list
-
-def spawn_vehicles_around_ego_vehicles(client, world, ego_vehicle, radius, spawn_points, numbers_of_vehicles):
-    # parameters:
-    # ego_vehicle :: your target vehicle
-    # radius :: the distance limitation between ego-vehicle and other free-vehicles
-    # spawn_points  :: the available spawn points in current map
-    # numbers_of_vehicles :: the number of free-vehicles around ego-vehicle that you need
-    np.random.shuffle(spawn_points)  # shuffle  all the spawn points
-    ego_location = ego_vehicle.get_location()
-    accessible_points = []
-    for spawn_point in spawn_points:
-        dis = math.sqrt((ego_location.x-spawn_point.location.x)**2 + (ego_location.y-spawn_point.location.y)**2)
-        # it also can include z-coordinate,but it is unnecessary
-        if dis < radius:
-            #print(dis)
-            accessible_points.append(spawn_point)
-
-    vehicle_bps = world.get_blueprint_library().filter('vehicle.*.*')   # don't specify the type of vehicle
-    vehicle_bps = [x for x in vehicle_bps if int(x.get_attribute('number_of_wheels')) == 4]  # only choose car with 4 wheels
-
-    vehicle_list = []  # keep the spawned vehicle in vehicle_list, because we need to link them with traffic_manager
-    if len(accessible_points) < numbers_of_vehicles:
-        # if your radius is relatively small,the satisfied points may be insufficient
-        numbers_of_vehicles = len(accessible_points)
-
-    for i in range(numbers_of_vehicles):  # generate the free vehicle
-        point = accessible_points[i]
-        vehicle_bp = np.random.choice(vehicle_bps)
-        try:
-            vehicle = world.spawn_actor(vehicle_bp, point)
-            vehicle_list.append(vehicle)
-        except:
-            print('failed')  # if failed, print the hints.
-            pass
-        
-    # you also can add those free vehicle into trafficemanager,and set them to autopilot.
-    # Only need to get rid of comments for below code. Otherwise, the those vehicle will be static
-    tm = client.get_trafficmanager()  # create a TM object
-    tm.global_percentage_speed_difference(100.0)  # set the global speed limitation
-    tm_port = tm.get_port()  # get the port of tm. we need add vehicle to tm by this port
-    for v in vehicle_list:  # set every vehicle's mode
-        v.set_autopilot(True, tm_port)  # you can get those functions detail in carla document
-        tm.ignore_lights_percentage(v, 0)
-        tm.distance_to_leading_vehicle(v, 0.5)
-        tm.vehicle_percentage_speed_difference(v, -20)
 
 def ego_vehicle_control(vehicle, cnn_predictions, pidLongitudinalController):
     # variable to store current speed when neural network predicts that 
@@ -338,9 +258,8 @@ def cutImage(img, targetW, targetH):
     upperPoint = imgHeight - targetImgHeight
     lowerPoint = upperPoint + targetImgHeight
 
-    #img = Image.fromarray(img).crop((leftPoint, upperPoint, rightPoint, lowerPoint))
     img = img[upperPoint : lowerPoint, leftPoint : rightPoint]
-    #crop_img = img[y:y+h, x:x+w]
+
     return img
 
 def cnn_processing(cnn_model, current_frame, smaPredictions):
@@ -367,15 +286,6 @@ def cnn_processing(cnn_model, current_frame, smaPredictions):
     smaPredictions.addToBuffer(cnn_predictions)
 
     return smaPredictions.getSMABuffer()
-
-def scenarioRunner(scenarioId):
-    # initialize world for the scenario
-
-    # initialize ego vehicle for the scenario 
-
-    # initialize other traffic participants
-
-    pass
 
 def run_simulation(args, client):
     """This function performed one test run using the args parameters
@@ -407,27 +317,17 @@ def run_simulation(args, client):
         # Instanciating SimulationData in which we will save vehicle state if 'R' is pressed
         sim_data = SimulationData()
 
-        # Instanciating the vehicle to which we attached the sensors
-        bp = random.choice(world.get_blueprint_library().filter('vehicle.bmw.*'))
-        
-        # Spawn actor vehicles in the world 
-        vehicle_list = SpawnScenarioVehicles(client, world, gScenario03VehPos[0], gScenario03VehPos[1])
+        # initialize scenario runner
+        sim_runner = SimScenarioRunner(client, gSpawnMatrix, gEgoSpawnId)
 
-        # Spawn ego vehicle in the world 
-        spawn_points = world.get_map().get_spawn_points()
-        #for i in range(len(spawn_points)):
-        #    print("SP[" + str(i) + "]: " + str(spawn_points[i]))
-        vehicle = world.spawn_actor(bp, spawn_points[gEgoSpawnIndex[gScenario01]])        
-        vehicle_list.append(vehicle)
+        # get display manageer from sim_runner
+        display_manager = sim_runner.getDisplayManager()
 
-        # Display Manager organize all the sensors an its display in a window
-        # If can easily configure the grid and the total window size
-        display_manager = DisplayManager(grid_size=[1, 1], window_size=[args.width, args.height])
+        # get ego vehicle from sim_runner
+        vehicle = sim_runner.getEgoVehicle()
 
-        # Then, RGBCamera can be used to spawn RGB Camera as needed
-        # and assign each to a grid position 
-        cam = RGBCamera(world, display_manager, carla.Transform(carla.Location(x=0, z=1.7), carla.Rotation(yaw=+00)), 
-                      vehicle, {}, display_pos=[0, 0], saveResolution=7)
+        # get vehicle list from sim_runner
+        vehicle_list = sim_runner.getVehicleList()
 
         if args.training == 'simulation':
             # create CNN model
@@ -436,9 +336,6 @@ def run_simulation(args, client):
             #cnn_model = tf.keras.models.load_model(os.path.join(model_path, model_name))
             cnn_model.load_weights(os.path.join(model_path, model_name))
 
-            # create PIDLongitudinalController for ego vehicle 'vehicle'
-            pidLongitudinalController = PIDLongitudinalController(vehicle)
-
             smaPredictions = SimpleMovingAverage(gSMABufferLen, output_no)
 
         # array to store current RGBCamera frame to be sent to CNN
@@ -446,23 +343,27 @@ def run_simulation(args, client):
 
         #Simulation loop
         call_exit = False
-        time_init_sim = timer.time()
+
+        scenarioId = 0
         while True:
 
-            # TO-DO:
-            # add different scenarios, reset simulation, ego vehicle and other traffic participants
+            # debug
+            # print vehicle position
             print(vehicle.get_transform())
 
-            if(vehicle.get_transform().location.y < 0):
-                vehicle.destroy()
-                vehicle = world.spawn_actor(bp, spawn_points[gEgoSpawnIndex[gScenario01]])        
-                vehicle_list.pop(-1)
-                vehicle_list.append(vehicle)
-                pidLongitudinalController = PIDLongitudinalController(vehicle)
+            # run trough different scenarios using SimScenarioRunner in simulation mode
+            if(args.training == 'simulation' and vehicle.get_transform().location.y < 0):
+                if(scenarioId < len(gSpawnMatrix) - 1):
+                    scenarioId += 1
+                    sim_runner.initScenario(scenarioId)
+                    # get ego vehicle from sim_runner
+                    vehicle = sim_runner.getEgoVehicle()
 
-                cam = RGBCamera(world, display_manager, carla.Transform(carla.Location(x=0, z=1.7), carla.Rotation(yaw=+00)), 
-                      vehicle, {}, display_pos=[0, 0], saveResolution=7)
-                      
+                    # get vehicle list from sim_runner
+                    vehicle_list = sim_runner.getVehicleList()
+                else:
+                    break # break simulation loop
+
             # Carla Tick
             if args.sync:
                 world.tick()
@@ -473,7 +374,7 @@ def run_simulation(args, client):
             display_manager.render()
 
             # get latest frame from RGBCamera
-            current_frame = np.asarray(cam.current_frame)
+            current_frame = np.asarray(sim_runner.getRGBCamera().current_frame)
 
             # simulation or training mode
             # check if simulation loaded by checking dimension of current_frame
@@ -482,7 +383,7 @@ def run_simulation(args, client):
                 cnn_predictions = cnn_processing(cnn_model, current_frame, smaPredictions)
 
                 # control ego vehicle based on predictions
-                ego_vehicle_control(vehicle, cnn_predictions, pidLongitudinalController)
+                ego_vehicle_control(vehicle, cnn_predictions, sim_runner.getPIDLongitudinalController())
 
                 # DEBUG: print predictions
                 cnn_predictions = np.round(cnn_predictions, decimals = 3)
@@ -492,10 +393,10 @@ def run_simulation(args, client):
 
             # record simulation data 
             if gRecord_data == True:
-                collect_data(sim_data, vehicle, cam)
+                collect_data(sim_data, vehicle, sim_runner.getRGBCamera())
             else:
                 if gData_collected == True:
-                    save_data(sim_data, cam)
+                    save_data(sim_data, sim_runner.getRGBCamera())
                     gData_collected = False
 
             for event in pygame.event.get():
