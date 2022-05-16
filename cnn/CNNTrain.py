@@ -16,7 +16,6 @@ from sklearn.utils import shuffle
 
 from cnn import create_cnn_model
 from DatasetGenerator import DatasetGenerator
-import cv2
 
 #################################################################################################################
 images = [] # list to store training images
@@ -30,6 +29,7 @@ SAMPLE_DIFF_THRESHOLD = 0.05 # threshold when determing difference between posit
 
 epochNo = 250   # number of epochs per training, any number greater than dataset size will load whole dataset
 batchSize = 4   # batch size in one epoch
+testDatasetSize = 0.15 # percentage of dataset to be allocated as test dataset for validating model performance
 
 startIndexTestData = 0   # from which index to start loading images and labels
 
@@ -224,7 +224,7 @@ if __name__ == '__main__':
 
     # train test split
     train_filenames, val_filenames, train_labels, val_labels = train_test_split(
-                                        filenames_shuffled, labels_shuffled, test_size=0.15, random_state=1)
+                                        filenames_shuffled, labels_shuffled, test_size=testDatasetSize, random_state=1)
 
     # Create train and validation dataset generators
     training_batch_generator = DatasetGenerator(train_filenames, train_labels, batchSize)
