@@ -52,6 +52,10 @@ class SimScenarioRunner:
 
     def initScenario(self, scenarioId):
 
+        # save scenarioId
+        self.scenarioId = scenarioId
+
+        # if any, destroy vehicles from previous scenario
         if(len(self.vehicle_list)):
             for v in self.vehicle_list:
                 v.destroy()

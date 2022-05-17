@@ -61,7 +61,7 @@ class HUD(object):
             safe_to_accelerate = sma_predictions[-1]
             accelerate_rate = self.sim_data[3][0]
             brake_rate = self.sim_data[3][1]
-            keep_speed_rate = self.sim_data[3][2]
+            keep_speed_rate = self.sim_data[3][2] if self.sim_data[3][2] > 0 else 0
 
             keep_distance = 1 if sma_predictions[-1] >= 0.4 and sma_predictions[-1] <= 0.6 else 0
         else:
@@ -106,12 +106,12 @@ class HUD(object):
         ]
 
         self._info_text += [
-            'Vehicles present:            ' + str(1 - round(sma_predictions[0])),
-            'Vehicles present left:       ' + str(1 - round(sma_predictions[1])),
-            'Vehicles present right:      ' + str(1 - round(sma_predictions[2])),
-            'Vehicles present center:     ' + str(1 - round(sma_predictions[3])),
+            'Vehicles present:          %2.0f' % (1 - round(sma_predictions[0])),
+            'Vehicles present left:     %2.0f' % (1 - round(sma_predictions[1])),
+            'Vehicles present right:    %2.0f' % (1 - round(sma_predictions[2])),
+            'Vehicles present center:   %2.0f' % (1 - round(sma_predictions[3])),
             'Keep distance:             %s' % {0: 'False', 1: 'True'}.get(keep_distance, keep_distance),
-            'Saved speed:                ' + str(round(keep_speed_rate)),
+            'Saved speed:               %2.0f km/h' % (round(keep_speed_rate)),
             '',
         ]
 
@@ -125,13 +125,15 @@ class HUD(object):
         self._notifications.set_text('Error: %s' % text, (255, 0, 0))
 
     def render(self, display):
+
+        # render HUD information on display
         if self._show_info:
             info_surface = pygame.Surface((self.dim[0], 115))
             info_surface.set_alpha(100)
             display.blit(info_surface, (0, 0))
             v_offset = 4
-            h_offset = 105
-            bar_h_offset = 435
+            h_offset = 90
+            bar_h_offset = 420
             bar_width = 106
 
             v_cnt = 0
@@ -144,7 +146,6 @@ class HUD(object):
                         points = [(x + 8, v_offset + 8 + (1.0 - y) * 30) for x, y in enumerate(item)]
                         pygame.draw.lines(display, (255, 136, 0), False, points, 2)
                     item = None
-                    #v_offset += 18
                 elif isinstance(item, tuple):
                     if isinstance(item[1], bool):
                         rect = pygame.Rect((bar_h_offset, v_offset + 4), (6, 6))
@@ -177,6 +178,12 @@ class HUD(object):
                     h_cnt += 1
                 else:
                     v_offset += 18
+
+        # draw CNN FOV rectangle
+        cnn_fov_surface = pygame.Surface((600, 370))
+        cnn_fov_surface.set_alpha(100)
+        pygame.draw.rect(cnn_fov_surface, (255, 0, 0), pygame.Rect(0, 0, 600, 370),  2)
+        display.blit(cnn_fov_surface, (340, 350))
 
         self._notifications.render(display)
 

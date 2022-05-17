@@ -153,9 +153,11 @@ def ego_vehicle_control(vehicle, cnn_predictions, pidLongitudinalController):
             ego_keep_distance_saved = True
             ego_keep_distance_speed = velocity_kmh - gKeepDistanceSpeedSubtract # maintain a speed that is a little bit less than current speed
         
+            if (ego_keep_distance_speed < 0.0):
+                ego_keep_distance_speed = 0.0
+
         pid_control = pidLongitudinalController.run_step(ego_keep_distance_speed)
         accelerate_rate = pid_control
-        print("Saved speed " + str(ego_keep_distance_speed))
     else: 
         # it is not safe to accelerate, brake
         pid_control = pidLongitudinalController.run_step(velocity_kmh - gBrakeKMHStep)
@@ -353,6 +355,8 @@ def run_simulation(args, client):
         sma_predictions = []
         ego_pid_control = []
         scenarioId = 0
+
+        print("Simulation running... Scenario %d" % sim_runner.getCurrentScenarioId())
         while True:
             # Carla Tick
             if args.sync:
@@ -375,7 +379,10 @@ def run_simulation(args, client):
 
                     # get vehicle list from sim_runner
                     vehicle_list = sim_runner.getVehicleList()
+
+                    print("Simulation running... Scenario %d" % sim_runner.getCurrentScenarioId())
                 else:
+                    print("Simulation running finished.")
                     break # break simulation loop
 
             # get latest frame from RGBCamera
