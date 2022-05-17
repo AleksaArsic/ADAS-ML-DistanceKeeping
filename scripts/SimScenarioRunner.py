@@ -13,7 +13,7 @@ from scripts.PIDLongitudinalController import PIDLongitudinalController
 class SimScenarioRunner:
     def __init__(self, client, displayManager, spawnMatrix, egoSpawnId):
         
-        self.scenarioId = 0 # by default scenarioId is 0
+        self.scenarioId = 1 # by default scenarioId is 0
 
         self.client = client
         self.world = self.client.get_world()
@@ -46,6 +46,9 @@ class SimScenarioRunner:
 
     def destroyVehicle(self):
         self.vehicle.destroy()
+
+    def getCurrentScenarioId(self):
+        return self.scenarioId
 
     def initScenario(self, scenarioId):
 

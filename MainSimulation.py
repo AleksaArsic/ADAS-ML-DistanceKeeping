@@ -123,6 +123,9 @@ def ego_vehicle_control(vehicle, cnn_predictions, pidLongitudinalController):
     global ego_keep_distance_speed
     global ego_keep_distance_saved
 
+    accelerate_rate = 0.0
+    brake_rate = 0.0
+
     # extract cnn predictions
     lSafeToAcc = cnn_predictions[4]
 
@@ -143,7 +146,7 @@ def ego_vehicle_control(vehicle, cnn_predictions, pidLongitudinalController):
         if (ego_keep_distance_saved == True):
             ego_keep_distance_saved = False
 
-        print("Accelerate " + str(pid_control))
+        accelerate_rate = pid_control
     elif (lSafeToAcc > gSafeToAccThreshold and lSafeToAcc < gNotSafeToAccThreshold): 
         # keep distance from leading vehicle, keep current speed
         if(ego_keep_distance_saved == False):
@@ -151,7 +154,7 @@ def ego_vehicle_control(vehicle, cnn_predictions, pidLongitudinalController):
             ego_keep_distance_speed = velocity_kmh - gKeepDistanceSpeedSubtract # maintain a speed that is a little bit less than current speed
         
         pid_control = pidLongitudinalController.run_step(ego_keep_distance_speed)
-        print("Keep distance " + str(pid_control))
+        accelerate_rate = pid_control
         print("Saved speed " + str(ego_keep_distance_speed))
     else: 
         # it is not safe to accelerate, brake
@@ -164,10 +167,8 @@ def ego_vehicle_control(vehicle, cnn_predictions, pidLongitudinalController):
         # because leading vehicle is stopped, we want it to begin moving after
         # leading vehicle started moving again
 
-        print("Brake " + str(pid_control * lSafeToAcc))
+        brake_rate = pid_control * lSafeToAcc
     
-    print("Speed: " + str(velocity_kmh))
-
     # if vehicle velocity is less than road limit apply throttle or brake and steer
     if(velocity_kmh < ego_speed_limit):
         
@@ -184,12 +185,12 @@ def ego_vehicle_control(vehicle, cnn_predictions, pidLongitudinalController):
         # apply control obtained trough PID Longitudinal Controller based on the outputs of the CNN
         if(pid_control >= 0.0):
             vehicle.apply_control(carla.VehicleControl(throttle = pid_control, steer = steer_in))
-            print("Throttle")
         else:
             vehicle.apply_control(carla.VehicleControl(brake = abs(pid_control) * lSafeToAcc, steer = steer_in))
-            print("Brake")
     else:
         vehicle.apply_control(carla.VehicleControl(throttle = 0, steer = 0))
+
+    return [accelerate_rate, brake_rate, ego_keep_distance_speed]
 
 def ego_vehicle_manual_control(vehicle, keys):
     ctrl_throttle = 0.0 
@@ -284,7 +285,7 @@ def cnn_processing(cnn_model, current_frame, smaPredictions):
     # apply moving average on cnn predictions to minimize great oscillations in predicted values.
     smaPredictions.addToBuffer(cnn_predictions)
 
-    return smaPredictions.getSMABuffer()
+    return [cnn_predictions[0], smaPredictions.getSMABuffer()]
 
 def run_simulation(args, client):
     """This function performed one test run using the args parameters
@@ -348,21 +349,21 @@ def run_simulation(args, client):
         # Simulation loop
         call_exit = False
 
+        cnn_predictions = []
+        sma_predictions = []
+        ego_pid_control = []
         scenarioId = 0
         while True:
             # Carla Tick
             if args.sync:
                 world.tick()
-                hud.tick(world, pygame.time.Clock())
+                hud.setSimData([vehicle, cnn_predictions, sma_predictions, ego_pid_control])
+                hud.tick(world)
             else:
                 world.wait_for_tick()
 
             # Render received data
             display_manager.render()
-
-            # debug
-            # print vehicle position
-            print(vehicle.get_transform())
 
             # run trough different scenarios using SimScenarioRunner in simulation mode
             if(args.training == 'simulation' and vehicle.get_transform().location.y < 0):
@@ -384,14 +385,13 @@ def run_simulation(args, client):
             # check if simulation loaded by checking dimension of current_frame
             if args.training == 'simulation' and current_frame.shape[0] != 0:
                 # process current RGBCamera frame trough CNN
-                cnn_predictions = cnn_processing(cnn_model, current_frame, smaPredictions)
+                [cnn_predictions, sma_predictions] = cnn_processing(cnn_model, current_frame, smaPredictions)
 
                 # control ego vehicle based on predictions
-                ego_vehicle_control(vehicle, cnn_predictions, sim_runner.getPIDLongitudinalController())
+                ego_pid_control = ego_vehicle_control(vehicle, sma_predictions, sim_runner.getPIDLongitudinalController())
 
                 # DEBUG: print predictions
-                cnn_predictions = np.round(cnn_predictions, decimals = 3)
-                print(cnn_predictions)
+                sma_predictions = np.round(sma_predictions, decimals = 3)
             else:
                 ego_vehicle_manual_control(vehicle, pygame.key.get_pressed())
 

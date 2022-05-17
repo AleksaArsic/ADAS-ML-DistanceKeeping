@@ -7,6 +7,7 @@ import carla
 import datetime
 import math
 import os
+import numpy as np
 
 class HUD(object):
     def __init__(self, width, height):
@@ -26,6 +27,14 @@ class HUD(object):
         self._show_info = True
         self._info_text = []
         self._server_clock = pygame.time.Clock()
+        self._client_clock = pygame.time.Clock()
+
+        # format:
+        # [vehicle, cnn_predictions, sma_predictions, ego_pid_control[accelerate_rate, brake_rate]]
+        self.sim_data = []
+
+    def setSimData(self, sim_data):
+        self.sim_data = sim_data
 
     def on_world_tick(self, timestamp):
         self._server_clock.tick()
@@ -33,69 +42,79 @@ class HUD(object):
         self.frame = timestamp.frame
         self.simulation_time = timestamp.elapsed_seconds
 
-    def tick(self, world, clock):
-        self._notifications.tick(world, clock)
+    def tick(self, world):
+        self._client_clock.tick()
+        self._notifications.tick(world, self._client_clock)
         if not self._show_info:
             return
-        #t = world.player.get_transform()
-        #v = world.player.get_velocity()
-        #c = world.player.get_control()
-        #compass = world.imu_sensor.compass
-        #heading = 'N' if compass > 270.5 or compass < 89.5 else ''
-        #heading += 'S' if 90.5 < compass < 269.5 else ''
-        #heading += 'E' if 0.5 < compass < 179.5 else ''
-        #heading += 'W' if 180.5 < compass < 359.5 else ''
-        #colhist = world.collision_sensor.get_collision_history()
-        #collision = [colhist[x + self.frame - 200] for x in range(0, 200)]
-        #max_col = max(1.0, max(collision))
-        #collision = [x / max_col for x in collision]
-        #vehicles = world.world.get_actors().filter('vehicle.*')
+        
+        t = self.sim_data[0].get_transform()
+        v = self.sim_data[0].get_velocity()
+        c = self.sim_data[0].get_control()
+
+        steer_rate = 0.0
+
+        if len(self.sim_data[3]):
+            cnn_predictions = self.sim_data[1]
+            sma_predictions = self.sim_data[2]
+
+            safe_to_accelerate = sma_predictions[-1]
+            accelerate_rate = self.sim_data[3][0]
+            brake_rate = self.sim_data[3][1]
+            keep_speed_rate = self.sim_data[3][2]
+
+            keep_distance = 1 if sma_predictions[-1] >= 0.4 and sma_predictions[-1] <= 0.6 else 0
+        else:
+            cnn_predictions = [0, 0, 0, 0, 0]
+            sma_predictions = [0, 0, 0, 0, 0]
+
+            safe_to_accelerate = 0.0
+            accelerate_rate = 0.0
+            brake_rate = 0.0
+            keep_speed_rate = 0.0
+
+            keep_distance = 0
+
         self._info_text = [
             'Server:  % 16.0f FPS' % self.server_fps,
-            'Client:  % 16.0f FPS' % clock.get_fps(),
+            'Client:  % 16.0f FPS' % self._client_clock.get_fps(),
             '',
-            'Vehicle: % 20s',# % get_actor_display_name(world.player, truncate=20),
-            'Map:     % 20s',# % world.map.name.split('/')[-1],
+            'Vehicle: % 20s' % get_actor_display_name(self.sim_data[0], truncate=20),
+            'Map:     % 20s' % world.get_map().name.split('/')[-1],
             'Simulation time: % 12s' % datetime.timedelta(seconds=int(self.simulation_time)),
             '',
-            #'Speed:   % 15.0f km/h' % (3.6 * math.sqrt(v.x**2 + v.y**2 + v.z**2)),
-            #u'Compass:% 17.0f\N{DEGREE SIGN} % 2s' % (compass, heading),
-            #'Accelero: (%5.1f,%5.1f,%5.1f)' % (world.imu_sensor.accelerometer),
-            #'Gyroscop: (%5.1f,%5.1f,%5.1f)' % (world.imu_sensor.gyroscope),
-            #'Location:% 20s' % ('(% 5.1f, % 5.1f)' % (t.location.x, t.location.y)),
-            #'GNSS:% 24s' % ('(% 2.6f, % 3.6f)' % (world.gnss_sensor.lat, world.gnss_sensor.lon)),
-            #'Height:  % 18.0f m' % t.location.z,
-            '']
-    '''
+            'Speed:   % 15.0f km/h' % (3.6 * math.sqrt(v.x**2 + v.y**2 + v.z**2)),
+            'Location:% 20s' % ('(% 5.1f, % 5.1f)' % (t.location.x, t.location.y))
+            ]
+    
         if isinstance(c, carla.VehicleControl):
             self._info_text += [
                 ('Throttle:', c.throttle, 0.0, 1.0),
-                ('Steer:', c.steer, -1.0, 1.0),
                 ('Brake:', c.brake, 0.0, 1.0),
-                ('Reverse:', c.reverse),
-                ('Hand brake:', c.hand_brake),
-                ('Manual:', c.manual_gear_shift),
-                'Gear:        %s' % {-1: 'R', 0: 'N'}.get(c.gear, c.gear)]
-        elif isinstance(c, carla.WalkerControl):
-            self._info_text += [
-                ('Speed:', c.speed, 0.0, 5.556),
-                ('Jump:', c.jump)]
+                ('Steer:', c.steer, -1.0, 1.0),
+                'Gear:        %s' % {-1: 'R', 0: 'N'}.get(c.gear, c.gear),
+                '']
+
         self._info_text += [
+            'CNN predictions: ' + str(np.round(cnn_predictions, decimals = 3)),
+            'SMA predictions: ' + str(np.round(sma_predictions, decimals = 3)),
+            'Throttle:           % 16.1f' % accelerate_rate,
+            'Break:              % 16.1f' % brake_rate,
+            'Steer:              % 16.1f' % steer_rate,
+            'Safe to accelerate: % 16.3f' % safe_to_accelerate,
+            ''
+        ]
+
+        self._info_text += [
+            'Vehicles present:            ' + str(1 - round(sma_predictions[0])),
+            'Vehicles present left:       ' + str(1 - round(sma_predictions[1])),
+            'Vehicles present right:      ' + str(1 - round(sma_predictions[2])),
+            'Vehicles present center:     ' + str(1 - round(sma_predictions[3])),
+            'Keep distance:             %s' % {0: 'False', 1: 'True'}.get(keep_distance, keep_distance),
+            'Saved speed:                ' + str(round(keep_speed_rate)),
             '',
-            'Collision:',
-            collision,
-            '',
-            'Number of vehicles: % 8d' % len(vehicles)]
-        if len(vehicles) > 1:
-            self._info_text += ['Nearby vehicles:']
-            distance = lambda l: math.sqrt((l.x - t.location.x)**2 + (l.y - t.location.y)**2 + (l.z - t.location.z)**2)
-            vehicles = [(distance(x.get_location()), x) for x in vehicles if x.id != world.player.id]
-            for d, vehicle in sorted(vehicles, key=lambda vehicles: vehicles[0]):
-                if d > 200.0:
-                    break
-                vehicle_type = get_actor_display_name(vehicle, truncate=22)
-                self._info_text.append('% 4dm %s' % (d, vehicle_type))
-    '''
+        ]
+
     def toggle_info(self):
         self._show_info = not self._show_info
 
@@ -111,8 +130,12 @@ class HUD(object):
             info_surface.set_alpha(100)
             display.blit(info_surface, (0, 0))
             v_offset = 4
-            bar_h_offset = 100
+            h_offset = 105
+            bar_h_offset = 435
             bar_width = 106
+
+            v_cnt = 0
+            h_cnt = 0
             for item in self._info_text:
                 if v_offset + 18 > self.dim[1]:
                     break
@@ -121,25 +144,40 @@ class HUD(object):
                         points = [(x + 8, v_offset + 8 + (1.0 - y) * 30) for x, y in enumerate(item)]
                         pygame.draw.lines(display, (255, 136, 0), False, points, 2)
                     item = None
-                    v_offset += 18
+                    #v_offset += 18
                 elif isinstance(item, tuple):
                     if isinstance(item[1], bool):
-                        rect = pygame.Rect((bar_h_offset, v_offset + 8), (6, 6))
+                        rect = pygame.Rect((bar_h_offset, v_offset + 4), (6, 6))
                         pygame.draw.rect(display, (255, 255, 255), rect, 0 if item[1] else 1)
                     else:
-                        rect_border = pygame.Rect((bar_h_offset, v_offset + 8), (bar_width, 6))
+                        rect_border = pygame.Rect((bar_h_offset, v_offset + 4), (bar_width, 6))
                         pygame.draw.rect(display, (255, 255, 255), rect_border, 1)
                         f = (item[1] - item[2]) / (item[3] - item[2])
                         if item[2] < 0.0:
-                            rect = pygame.Rect((bar_h_offset + f * (bar_width - 6), v_offset + 8), (6, 6))
+                            rect = pygame.Rect((bar_h_offset+ f * (bar_width - 6), v_offset + 4), (6, 6))
                         else:
-                            rect = pygame.Rect((bar_h_offset, v_offset + 8), (f * bar_width, 6))
+                            rect = pygame.Rect((bar_h_offset, v_offset + 4), (f * bar_width, 6))
                         pygame.draw.rect(display, (255, 255, 255), rect)
                     item = item[0]
                 if item:  # At this point has to be a str.
                     surface = self._font_mono.render(item, True, (255, 255, 255))
-                    display.blit(surface, (8, v_offset))
-                v_offset += 18
+                    display.blit(surface, (h_offset, v_offset))
+                
+                v_cnt += 1
+
+                if v_cnt % 7 == 0:
+                    if h_cnt == 2:
+                        h_offset += 380
+                        h_cnt = 0
+                    else:
+                        h_offset += 240
+
+                    v_offset = 4
+                    v_cnt = 0
+                    h_cnt += 1
+                else:
+                    v_offset += 18
+
         self._notifications.render(display)
 
 class FadingText(object):
