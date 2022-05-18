@@ -25,6 +25,7 @@ class HUD(object):
         self.frame = 0
         self.simulation_time = 0
         self._show_info = True
+        self._show_cnn_fov = False
         self._info_text = []
         self._server_clock = pygame.time.Clock()
         self._client_clock = pygame.time.Clock()
@@ -118,6 +119,9 @@ class HUD(object):
     def toggle_info(self):
         self._show_info = not self._show_info
 
+    def toggle_cnn_fov(self):
+        self._show_cnn_fov = not self._show_cnn_fov
+
     def notification(self, text, seconds=2.0):
         self._notifications.set_text(text, seconds=seconds)
 
@@ -180,10 +184,11 @@ class HUD(object):
                     v_offset += 18
 
         # draw CNN FOV rectangle
-        cnn_fov_surface = pygame.Surface((600, 370))
-        cnn_fov_surface.set_alpha(100)
-        pygame.draw.rect(cnn_fov_surface, (255, 0, 0), pygame.Rect(0, 0, 600, 370),  2)
-        display.blit(cnn_fov_surface, (340, 350))
+        if self._show_cnn_fov:
+            cnn_fov_surface = pygame.Surface((600, 370))
+            cnn_fov_surface.set_alpha(100)
+            pygame.draw.rect(cnn_fov_surface, (255, 0, 0), pygame.Rect(0, 0, 600, 370),  2)
+            display.blit(cnn_fov_surface, (340, 350))
 
         self._notifications.render(display)
 

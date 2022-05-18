@@ -40,6 +40,8 @@ try:
     from pygame.locals import K_r
     from pygame.locals import K_s
     from pygame.locals import K_w
+    from pygame.locals import K_F1
+    from pygame.locals import K_F2
 except ImportError:
     raise RuntimeError('cannot import pygame, make sure pygame package is installed')
 
@@ -413,13 +415,17 @@ def run_simulation(args, client):
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     call_exit = True
-                elif event.type == pygame.KEYDOWN:
+                elif event.type == pygame.KEYDOWN: 
                     if event.key == K_ESCAPE or event.key == K_q:
                         call_exit = True
                         break
-                    elif event.key == K_r:
+                    elif event.key == K_r: # record data
                         gRecord_data = not gRecord_data
                         gData_collected = True
+                    elif event.key == K_F1: # toggle info
+                        hud.toggle_info()
+                    elif event.key == K_F2: # toggle cnn fov
+                        hud.toggle_cnn_fov()
 
             if call_exit:
                 break
