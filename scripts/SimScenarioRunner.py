@@ -110,6 +110,6 @@ class SimScenarioRunner:
                 v.set_autopilot(True, tm_port)  # you can get those functions detail in carla document
                 tm.auto_lane_change(v,False)    # disable auto lane change
                 tm.distance_to_leading_vehicle(v, 0.5)  # leave safety distance to leading vehicle 
-                tm.vehicle_percentage_speed_difference(v, -10) # drive 20 percent faster than current speed limit
+                tm.vehicle_percentage_speed_difference(v, -20) # drive 20 percent faster than current speed limit
 
         return vehicle_list

@@ -14,7 +14,7 @@ class PIDLongitudinalController():
     PIDLongitudinalController implements longitudinal control using a PID.
     """
 
-    def __init__(self, vehicle, K_P=0.8, K_I=0.0, K_D=0.3, dt=0.03):
+    def __init__(self, vehicle, K_P=0.1, K_I=1, K_D=0.1, dt=0.03):
         """
         Constructor method.
 
@@ -65,7 +65,9 @@ class PIDLongitudinalController():
             _de = 0.0
             _ie = 0.0
 
-        return np.clip((self._k_p * error) + (self._k_d * _de) + (self._k_i * _ie), -1.0, 1.0)
+        res = np.clip((self._k_p * error) + (self._k_d * _de) + (self._k_i * _ie), -1.0, 1.0)
+
+        return res
 
     def change_parameters(self, K_P, K_I, K_D, dt):
         """Changes the PID parameters"""

@@ -76,7 +76,7 @@ gSafeToAccThreshold = 0.4
 gNotSafeToAccThreshold = 0.6
 gBrakeKMHStep = 2.5
 gKeepDistanceSpeedSubtract = 5
-gSMABufferLen = 5
+gSMABufferLen = 10
 #################################################################################################################
 
 #################################################################################################################
@@ -87,6 +87,7 @@ ego_transform_spawn = carla.Rotation(pitch=0.000000, yaw=-180.035, roll=0.000000
 ego_speed_limit = 80 # ego vehicle speed limit in km/h
 ego_keep_distance_speed = 0 # store vehicle speed when neural network predicts that the vehicle should keep distance
 ego_keep_distance_saved = False # store boolean whether ego_keep_distance_speed is saved or not
+safeToAccPrev = 0 # previous value of cnn prediction of safeToAcc
 #################################################################################################################
 
 #################################################################################################################
@@ -107,7 +108,7 @@ targetImgHeight = 370    # image heigth on which CNN was trained
 # x_pos: + right lane, - left lane
 # y_pos: + behind ego vehicle, - in front of ego vehicle
 gScenario01VehPos = [[], []] # empty road
-gScenario02VehPos = [[0, -3, 3, 7, 0, -3, 3, 7], [-60, -40, -35, -30, -40, -15, -20, -15]] # ongoing traffic 
+gScenario02VehPos = [[0, -3, 3, 7, -3, 3, 7], [-60, -40, -35, -30, -5, -10, -7]] # ongoing traffic 
 gScenario03VehPos = [[-3, 3, 7, -3, 3, 7], [-40, -35, -30, -15, -20, -15]] # ongoing traffic, no leading vehicle
 
 # gSpawnMatrix 
@@ -119,17 +120,21 @@ gSpawnMatrix = [gScenario01VehPos, gScenario02VehPos, gScenario03VehPos]
 gEgoSpawnId = [120, 120, 120]
 #################################################################################################################
 
-def ego_vehicle_control(vehicle, cnn_predictions, pidLongitudinalController):
+def ego_vehicle_control(vehicle, smaPredictions, safeToAccBuff, pidLongitudinalController):
     # variable to store current speed when neural network predicts that 
     # ego vehicle should keep distance to the leading vehicle
     global ego_keep_distance_speed
     global ego_keep_distance_saved
+    global safeToAccPrev
 
     accelerate_rate = 0.0
     brake_rate = 0.0
 
+    print(safeToAccBuff)
+
     # extract cnn predictions
-    lSafeToAcc = cnn_predictions[4]
+    lSafeToAcc = smaPredictions.getSMABuffer()[4]
+    lSafeToAccPrev = safeToAccPrev
 
     velocity_kmh = pidLongitudinalController.get_speed(vehicle)
 
@@ -149,14 +154,28 @@ def ego_vehicle_control(vehicle, cnn_predictions, pidLongitudinalController):
             ego_keep_distance_saved = False
 
         accelerate_rate = pid_control
-    elif (lSafeToAcc > gSafeToAccThreshold and lSafeToAcc < gNotSafeToAccThreshold): 
+
+    elif (lSafeToAcc > gSafeToAccThreshold and lSafeToAcc < gNotSafeToAccThreshold):
+
+        roc =  ((safeToAccBuff[-1] / safeToAccBuff[0]) - 1) * 100
+        print(roc)
+        print(abs(safeToAccBuff[0] - safeToAccBuff[-1]))
         # keep distance from leading vehicle, keep current speed
         if(ego_keep_distance_saved == False):
             ego_keep_distance_saved = True
             ego_keep_distance_speed = velocity_kmh - gKeepDistanceSpeedSubtract # maintain a speed that is a little bit less than current speed
         
+        print("keep")
+        if ((ego_keep_distance_saved == True) and (abs(safeToAccBuff[0] - safeToAccBuff[-1]) > 0.05) and (roc > 0)):
+            ego_keep_distance_speed = ego_keep_distance_speed - gKeepDistanceSpeedSubtract
+        elif ((ego_keep_distance_saved == True) and (abs(safeToAccBuff[0] - safeToAccBuff[-1]) > 0.05) and (roc < 0)):
+            ego_keep_distance_speed = ego_keep_distance_speed + gKeepDistanceSpeedSubtract
+            print("again")
+
             if (ego_keep_distance_speed < 0.0):
                 ego_keep_distance_speed = 0.0
+
+        print(ego_keep_distance_speed)
 
         pid_control = pidLongitudinalController.run_step(ego_keep_distance_speed)
         accelerate_rate = pid_control
@@ -171,13 +190,13 @@ def ego_vehicle_control(vehicle, cnn_predictions, pidLongitudinalController):
         # because leading vehicle is stopped, we want it to begin moving after
         # leading vehicle started moving again
 
-        brake_rate = pid_control * lSafeToAcc
-    
+        brake_rate = abs(pid_control * lSafeToAcc)
+
     # if vehicle velocity is less than road limit apply throttle or brake and steer
     if(velocity_kmh < ego_speed_limit):
         
         # control of steering for town06
-        # at specific location appyl steering to stay in lane
+        # at specific location apply steering to stay in lane
         vehicle_loc_x = vehicle.get_location().x 
 
         steer_in = 0.0
@@ -188,11 +207,14 @@ def ego_vehicle_control(vehicle, cnn_predictions, pidLongitudinalController):
 
         # apply control obtained trough PID Longitudinal Controller based on the outputs of the CNN
         if(pid_control >= 0.0):
-            vehicle.apply_control(carla.VehicleControl(throttle = pid_control, steer = steer_in))
+            vehicle.apply_control(carla.VehicleControl(throttle = pid_control, steer = 0.0))
         else:
-            vehicle.apply_control(carla.VehicleControl(brake = abs(pid_control) * lSafeToAcc, steer = steer_in))
+            vehicle.apply_control(carla.VehicleControl(brake = abs(pid_control) * lSafeToAcc, steer = 0.0))
     else:
         vehicle.apply_control(carla.VehicleControl(throttle = 0, steer = 0))
+
+    # save previous value of safeToAcc
+    safeToAccPrev = lSafeToAcc
 
     return [accelerate_rate, brake_rate, ego_keep_distance_speed]
 
@@ -356,6 +378,7 @@ def run_simulation(args, client):
         cnn_predictions = []
         sma_predictions = []
         ego_pid_control = []
+        safeToAccBuff = []
         scenarioId = 0
 
         print("Simulation running... Scenario %d" % sim_runner.getCurrentScenarioId())
@@ -372,7 +395,7 @@ def run_simulation(args, client):
             display_manager.render()
 
             # run trough different scenarios using SimScenarioRunner in simulation mode
-            if(args.training == 'simulation' and vehicle.get_transform().location.y < 0):
+            if(args.training == 'simulation' and vehicle.get_transform().location.y < -150.0):
                 if(scenarioId < len(gSpawnMatrix) - 1):
                     scenarioId += 1
                     sim_runner.initScenario(scenarioId)
@@ -396,11 +419,15 @@ def run_simulation(args, client):
                 # process current RGBCamera frame trough CNN
                 [cnn_predictions, sma_predictions] = cnn_processing(cnn_model, current_frame, smaPredictions)
 
-                # control ego vehicle based on predictions
-                ego_pid_control = ego_vehicle_control(vehicle, sma_predictions, sim_runner.getPIDLongitudinalController())
+                if(len(safeToAccBuff) < 5):
+                    safeToAccBuff.append(sma_predictions[-1])
+                else:
+                    safeToAccBuff.pop(0)
+                    safeToAccBuff.append(sma_predictions[-1])
 
-                # DEBUG: print predictions
-                sma_predictions = np.round(sma_predictions, decimals = 3)
+                # control ego vehicle based on predictions
+                ego_pid_control = ego_vehicle_control(vehicle, smaPredictions, safeToAccBuff, sim_runner.getPIDLongitudinalController())
+
             else:
                 ego_vehicle_manual_control(vehicle, pygame.key.get_pressed())
 

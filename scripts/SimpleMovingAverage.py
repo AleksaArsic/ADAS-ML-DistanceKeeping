@@ -30,3 +30,6 @@ class SimpleMovingAverage:
 
     def getSMABuffer(self):
         return self.smaBuffer
+
+    def getDataBuffer(self):
+        return self.dataBuffer
