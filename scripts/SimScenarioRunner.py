@@ -13,7 +13,8 @@ from scripts.PIDLongitudinalController import PIDLongitudinalController
 class SimScenarioRunner:
     def __init__(self, client, displayManager, spawnMatrix, egoSpawnId):
         
-        self.scenarioId = 1 # by default scenarioId is 0
+        self.scenarioId = 0 # by default scenarioId is 0
+        self.unfallScenario = 0
 
         self.client = client
         self.world = self.client.get_world()
@@ -62,7 +63,7 @@ class SimScenarioRunner:
 
         # Instanciating the vehicle to which we attached the sensors
         bp = random.choice(self.world.get_blueprint_library().filter('vehicle.bmw.*'))
-        
+
         # Spawn actor vehicles in the world 
         self.vehicle_list = self.__spawnScenarioVehicles__(self.spawnMatrix[scenarioId][0], self.spawnMatrix[scenarioId][1])
 
@@ -88,8 +89,13 @@ class SimScenarioRunner:
         vehicle_list = []  # keep the spawned vehicle in vehicle_list, because we need to link them with traffic_manager
 
         spawn_points = self.world.get_map().get_spawn_points()
+        
+        # generate special vehicles for scenario 3
+        #print(self.world.get_blueprint_library().filter('vehicle.*'))
+        if(self.scenarioId == self.unfallScenario):
+            vehicle_list += self.__scenario_three_unfall__(vehPosX, vehPosY)
 
-        for i in range(len(vehPosX)):  # generate the free vehicle
+        for i in range(len(vehPosX)):  # generate free vehicle
             transform = spawn_points[self.egoSpawnId[self.scenarioId]] 
             location = carla.Location(transform.location.x + vehPosX[i], transform.location.y + vehPosY[i], transform.location.z) 
             point = carla.Transform(location, transform.rotation) 
@@ -102,7 +108,7 @@ class SimScenarioRunner:
                 pass
 
         # Add vehicles to TM
-        if (len(vehicle_list)):
+        if (len(vehicle_list) and self.scenarioId != self.unfallScenario):
             tm = self.client.get_trafficmanager()  # create a TM object
             tm.global_percentage_speed_difference(45.0)  # set the global speed limitation
             tm_port = tm.get_port()  # get the port of tm. we need add vehicle to tm by this port
@@ -111,5 +117,39 @@ class SimScenarioRunner:
                 tm.auto_lane_change(v,False)    # disable auto lane change
                 tm.distance_to_leading_vehicle(v, 0.5)  # leave safety distance to leading vehicle 
                 tm.vehicle_percentage_speed_difference(v, -20) # drive 20 percent faster than current speed limit
+
+        return vehicle_list
+
+    # special vehicles generated for scenario 3
+    # police car, firetruck and ambulance
+    def __scenario_three_unfall__(self, vehPosX, vehPosY):
+
+        vehicle_list = []
+
+        vehicle_bps = [self.world.get_blueprint_library().find('vehicle.dodge.charger_police'),  
+                        self.world.get_blueprint_library().find('vehicle.carlamotors.firetruck'), 
+                        self.world.get_blueprint_library().find('vehicle.ford.ambulance')]
+
+        rotation_yaw = [15, -45, 25]
+
+        spawn_points = self.world.get_map().get_spawn_points()
+
+        for i in range(len(vehicle_bps)):  # generate unfall vehicles
+            transform = spawn_points[self.egoSpawnId[self.scenarioId]] 
+            location = carla.Location(transform.location.x + vehPosX[i], transform.location.y + vehPosY[i], transform.location.z) 
+            rotation = carla.Rotation(transform.rotation.pitch, transform.rotation.yaw + rotation_yaw[i], transform.rotation.roll)
+            point = carla.Transform(location, rotation) 
+            vehicle_bp = vehicle_bps[i]
+            try:
+                vehicle = self.world.spawn_actor(vehicle_bp, point)
+                vehicle_list.append(vehicle)
+            except:
+                print('failed')  # if failed, print the hints.
+                pass
+
+
+        vehPosX = vehPosX[len(vehicle_bps):]
+        vehPosY = vehPosY[len(vehicle_bps):]
+
 
         return vehicle_list

@@ -75,7 +75,7 @@ output_no = 5       # number of outputs of the CNN model
 gSafeToAccThreshold = 0.4
 gNotSafeToAccThreshold = 0.6
 gBrakeKMHStep = 2.5
-gKeepDistanceSpeedSubtract = 5
+gKeepDistanceSpeedSubtract = 7.5
 gSMABufferLen = 10
 #################################################################################################################
 
@@ -103,21 +103,22 @@ targetImgHeight = 370    # image heigth on which CNN was trained
 #################################################################################################################
 
 #################################################################################################################
-# Arrays of relative positions of the vehicles in respecto ego vehicle for different scenarios
+# Arrays of relative positions of the vehicles in respect to ego vehicle for different scenarios
 # array format: [x_pos, y_pos]
 # x_pos: + right lane, - left lane
 # y_pos: + behind ego vehicle, - in front of ego vehicle
 gScenario01VehPos = [[], []] # empty road
-gScenario02VehPos = [[0, -3, 3, 7, -3, 3, 7], [-60, -40, -35, -30, -5, -10, -7]] # ongoing traffic 
+gScenario02VehPos = [[0, -3, 3, 7, -3, 3, 7], [-80, -40, -35, -30, -5, -10, -7]] # ongoing traffic 
 gScenario03VehPos = [[-3, 3, 7, -3, 3, 7], [-40, -35, -30, -15, -20, -15]] # ongoing traffic, no leading vehicle
+gScenario04VehPos = [[-4, 1, 6, -1.5, -4, 2, 6, -4, 2, 6], [-300, -305, -295, -277, -248, -253, -270, -256, -262, -252]] # stil traffic
 
 # gSpawnMatrix 
 # passed as parameter to SimScenarioRunner class
-gSpawnMatrix = [gScenario01VehPos, gScenario02VehPos, gScenario03VehPos]
+gSpawnMatrix = [gScenario04VehPos, gScenario02VehPos, gScenario03VehPos, gScenario01VehPos]
 
 # gEgoSpawnId 
 # passed as parameter to SimScenarioRunner class
-gEgoSpawnId = [120, 120, 120]
+gEgoSpawnId = [120, 120, 120, 120]
 #################################################################################################################
 
 def ego_vehicle_control(vehicle, smaPredictions, safeToAccBuff, pidLongitudinalController):
@@ -168,9 +169,9 @@ def ego_vehicle_control(vehicle, smaPredictions, safeToAccBuff, pidLongitudinalC
         print("keep")
         if ((ego_keep_distance_saved == True) and (abs(safeToAccBuff[0] - safeToAccBuff[-1]) > 0.05) and (roc > 0)):
             ego_keep_distance_speed = ego_keep_distance_speed - gKeepDistanceSpeedSubtract
+            print("again")
         elif ((ego_keep_distance_saved == True) and (abs(safeToAccBuff[0] - safeToAccBuff[-1]) > 0.05) and (roc < 0)):
             ego_keep_distance_speed = ego_keep_distance_speed + gKeepDistanceSpeedSubtract
-            print("again")
 
             if (ego_keep_distance_speed < 0.0):
                 ego_keep_distance_speed = 0.0
@@ -181,7 +182,7 @@ def ego_vehicle_control(vehicle, smaPredictions, safeToAccBuff, pidLongitudinalC
         accelerate_rate = pid_control
     else: 
         # it is not safe to accelerate, brake
-        pid_control = pidLongitudinalController.run_step(velocity_kmh - gBrakeKMHStep)
+        pid_control = pidLongitudinalController.run_step(0)#velocity_kmh - gBrakeKMHStep)
 
         # check different thresholds of not safeToAcc and apply breaking accordingly 
 
@@ -190,7 +191,7 @@ def ego_vehicle_control(vehicle, smaPredictions, safeToAccBuff, pidLongitudinalC
         # because leading vehicle is stopped, we want it to begin moving after
         # leading vehicle started moving again
 
-        brake_rate = abs(pid_control * lSafeToAcc)
+        brake_rate = abs(pid_control)
 
     # if vehicle velocity is less than road limit apply throttle or brake and steer
     if(velocity_kmh < ego_speed_limit):
@@ -209,7 +210,7 @@ def ego_vehicle_control(vehicle, smaPredictions, safeToAccBuff, pidLongitudinalC
         if(pid_control >= 0.0):
             vehicle.apply_control(carla.VehicleControl(throttle = pid_control, steer = 0.0))
         else:
-            vehicle.apply_control(carla.VehicleControl(brake = abs(pid_control) * lSafeToAcc, steer = 0.0))
+            vehicle.apply_control(carla.VehicleControl(brake = abs(pid_control), steer = 0.0))
     else:
         vehicle.apply_control(carla.VehicleControl(throttle = 0, steer = 0))
 
