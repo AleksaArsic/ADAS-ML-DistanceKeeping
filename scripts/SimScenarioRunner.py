@@ -6,7 +6,6 @@
 import carla
 import random
 import numpy as np
-from scripts.DisplayManager import DisplayManager
 from scripts.RGBCamera import RGBCamera
 from scripts.PIDLongitudinalController import PIDLongitudinalController
 
@@ -14,7 +13,12 @@ class SimScenarioRunner:
     def __init__(self, client, displayManager, spawnMatrix, egoSpawnId):
         
         self.scenarioId = 0 # by default scenarioId is 0
-        self.unfallScenario = 0
+
+        # This could be generalized and placed in a list that is passed as parameter of the class constructor
+        # thus SimScenarioRunner would have one more layer of abstraction. 
+        self.unfallScenario = 1
+        self.laneChangeScenarioHard = 0
+        self.laneChangeScenarioEasy = 2
 
         self.client = client
         self.world = self.client.get_world()
@@ -51,6 +55,8 @@ class SimScenarioRunner:
     def getCurrentScenarioId(self):
         return self.scenarioId
 
+    # Function used for initializing different scenarios. 
+    # should be called only once per scenario initialization.
     def initScenario(self, scenarioId):
 
         # save scenarioId
@@ -82,6 +88,20 @@ class SimScenarioRunner:
         # create PIDLongitudinalController for ego vehicle 'vehicle'
         self.pidLongitudinalController = PIDLongitudinalController(self.vehicle)
 
+    # Period function used for generating special cases troughout scenarios,
+    # it should be called periodically regradless of scenario.
+    # Used for generating traffic that does not have static behvaiour or 
+    # needs to be changed in runtime considering different conditions
+    def periodicScenario(self):
+        
+        
+        if (self.laneChangeScenarioHard == self.scenarioId):
+            # force lane change of the left vehicle to ego vehicle lane
+            self.__scenario_force_lane_change__(30, self.vehicle_list[1], False)
+        elif (self.laneChangeScenarioEasy == self.scenarioId):
+            # force lane change of the right vehicle to ego vehicle lane
+            self.__scenario_force_lane_change__(60, self.vehicle_list[0], True)
+
     def __spawnScenarioVehicles__(self, vehPosX, vehPosY):
         vehicle_bps = self.world.get_blueprint_library().filter('vehicle.*.*')   # don't specify the type of vehicle
         vehicle_bps = [x for x in vehicle_bps if int(x.get_attribute('number_of_wheels')) == 4]  # only choose car with 4 wheels
@@ -93,7 +113,7 @@ class SimScenarioRunner:
         # generate special vehicles for scenario 3
         #print(self.world.get_blueprint_library().filter('vehicle.*'))
         if(self.scenarioId == self.unfallScenario):
-            vehicle_list += self.__scenario_three_unfall__(vehPosX, vehPosY)
+            vehicle_list += self.__scenario_unfall__(vehPosX, vehPosY)
 
         for i in range(len(vehPosX)):  # generate free vehicle
             transform = spawn_points[self.egoSpawnId[self.scenarioId]] 
@@ -122,7 +142,7 @@ class SimScenarioRunner:
 
     # special vehicles generated for scenario 3
     # police car, firetruck and ambulance
-    def __scenario_three_unfall__(self, vehPosX, vehPosY):
+    def __scenario_unfall__(self, vehPosX, vehPosY):
 
         vehicle_list = []
 
@@ -151,5 +171,22 @@ class SimScenarioRunner:
         vehPosX = vehPosX[len(vehicle_bps):]
         vehPosY = vehPosY[len(vehicle_bps):]
 
-
         return vehicle_list
+
+    # force lane change if distance between ego vehicle and vehicle in adjecent lane is below certain limit
+    # parameters:
+    #      - distance: on which distance from ego vehicle to send command to change lane
+    #      - veh:      vehicle for which to force lane change
+    #      - direction: which direction to force 'veh' to change lane
+    def __scenario_force_lane_change__(self, distance, veh, direction):
+
+        ego_position = self.vehicle.get_location()
+        veh_left_lane_position = veh.get_location()
+
+        #print(abs(ego_position.y - veh_left_lane_position.y))
+        #print(abs(ego_position.x - veh_left_lane_position.x))
+
+        if(abs(ego_position.y - veh_left_lane_position.y) < distance and abs(ego_position.x - veh_left_lane_position.x) > 2.5):
+            tm = self.client.get_trafficmanager()
+            tm.force_lane_change(veh, direction)
+            print("lane change")

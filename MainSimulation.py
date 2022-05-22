@@ -110,11 +110,12 @@ targetImgHeight = 370    # image heigth on which CNN was trained
 gScenario01VehPos = [[], []] # empty road
 gScenario02VehPos = [[0, -3, 3, 7, -3, 3, 7], [-80, -40, -35, -30, -5, -10, -7]] # ongoing traffic 
 gScenario03VehPos = [[-3, 3, 7, -3, 3, 7], [-40, -35, -30, -15, -20, -15]] # ongoing traffic, no leading vehicle
-gScenario04VehPos = [[-4, 1, 6, -1.5, -4, 2, 6, -4, 2, 6], [-300, -305, -295, -277, -248, -253, -270, -256, -262, -252]] # stil traffic
+gScenario04VehPos = [[-4, 1, 6, -1.5, -4, 2, 6, -4, 2, 6], [-300, -305, -295, -277, -248, -253, -270, -256, -262, -252]] # unfall
+gScenario05VehPos = [[-3, 3], [-100, -100]] # cutting in front of ego vehicle
 
 # gSpawnMatrix 
 # passed as parameter to SimScenarioRunner class
-gSpawnMatrix = [gScenario04VehPos, gScenario02VehPos, gScenario03VehPos, gScenario01VehPos]
+gSpawnMatrix = [gScenario05VehPos, gScenario04VehPos, gScenario02VehPos, gScenario03VehPos, gScenario01VehPos]
 
 # gEgoSpawnId 
 # passed as parameter to SimScenarioRunner class
@@ -131,7 +132,7 @@ def ego_vehicle_control(vehicle, smaPredictions, safeToAccBuff, pidLongitudinalC
     accelerate_rate = 0.0
     brake_rate = 0.0
 
-    print(safeToAccBuff)
+    #print(safeToAccBuff)
 
     # extract cnn predictions
     lSafeToAcc = smaPredictions.getSMABuffer()[4]
@@ -159,8 +160,8 @@ def ego_vehicle_control(vehicle, smaPredictions, safeToAccBuff, pidLongitudinalC
     elif (lSafeToAcc > gSafeToAccThreshold and lSafeToAcc < gNotSafeToAccThreshold):
 
         roc =  ((safeToAccBuff[-1] / safeToAccBuff[0]) - 1) * 100
-        print(roc)
-        print(abs(safeToAccBuff[0] - safeToAccBuff[-1]))
+        #print(roc)
+        #print(abs(safeToAccBuff[0] - safeToAccBuff[-1]))
         # keep distance from leading vehicle, keep current speed
         if(ego_keep_distance_saved == False):
             ego_keep_distance_saved = True
@@ -170,13 +171,13 @@ def ego_vehicle_control(vehicle, smaPredictions, safeToAccBuff, pidLongitudinalC
         if ((ego_keep_distance_saved == True) and (abs(safeToAccBuff[0] - safeToAccBuff[-1]) > 0.05) and (roc > 0)):
             ego_keep_distance_speed = ego_keep_distance_speed - gKeepDistanceSpeedSubtract
             print("again")
-        elif ((ego_keep_distance_saved == True) and (abs(safeToAccBuff[0] - safeToAccBuff[-1]) > 0.05) and (roc < 0)):
-            ego_keep_distance_speed = ego_keep_distance_speed + gKeepDistanceSpeedSubtract
+        #elif ((ego_keep_distance_saved == True) and (abs(safeToAccBuff[0] - safeToAccBuff[-1]) > 0.05) and (roc < 0)):
+        #    ego_keep_distance_speed = ego_keep_distance_speed + gKeepDistanceSpeedSubtract
 
             if (ego_keep_distance_speed < 0.0):
                 ego_keep_distance_speed = 0.0
 
-        print(ego_keep_distance_speed)
+        #print(ego_keep_distance_speed)
 
         pid_control = pidLongitudinalController.run_step(ego_keep_distance_speed)
         accelerate_rate = pid_control
@@ -410,6 +411,9 @@ def run_simulation(args, client):
                 else:
                     print("Simulation running finished.")
                     break # break simulation loop
+
+            # call SimScenarioRunner periodic function
+            sim_runner.periodicScenario()
 
             # get latest frame from RGBCamera
             current_frame = np.asarray(sim_runner.getRGBCamera().current_frame)
