@@ -1,11 +1,17 @@
 '''
     SimScenarioRunner.py - class is responsible for running predefined scenarios. Spawning of ego vechile, actor vehicles and 
                            all crutial components for scenario to take place
+                           This class can be adapted to suit esired needs. In it's essence it has possibility to 
+                           initialize scenario, change scenario in run time trough periodic function and request new scenario
+                           based on certain criteria.
+                           Some of the capabilities are to generate semi-deterministic traffic (always known starting positions),
+                           generating ego vehicle with required sensors and request different scenario information at will.
 '''
 
 import carla
 import random
 import numpy as np
+from datetime import datetime
 from scripts.RGBCamera import RGBCamera
 from scripts.PIDLongitudinalController import PIDLongitudinalController
 
@@ -16,9 +22,18 @@ class SimScenarioRunner:
 
         # This could be generalized and placed in a list that is passed as parameter of the class constructor
         # thus SimScenarioRunner would have one more layer of abstraction. 
-        self.unfallScenario = 1
-        self.laneChangeScenarioHard = 0
-        self.laneChangeScenarioEasy = 2
+        self.laneChangeScenarioHard = 3
+        self.laneChangeScenarioEasy = 4
+        self.unfallScenario = 5
+
+        self.scenarioStopCriteria = -150
+        self.unfallScenarioStopCriteria = 45
+
+        self.unfallTimeStart = 0
+        self.unfallTimerStarted = False
+
+        # Scenario switch conditions
+        self.scenarioSwitchConditions = []
 
         self.client = client
         self.world = self.client.get_world()
@@ -94,13 +109,37 @@ class SimScenarioRunner:
     # needs to be changed in runtime considering different conditions
     def periodicScenario(self):
         
-        
         if (self.laneChangeScenarioHard == self.scenarioId):
             # force lane change of the left vehicle to ego vehicle lane
             self.__scenario_force_lane_change__(30, self.vehicle_list[1], False)
         elif (self.laneChangeScenarioEasy == self.scenarioId):
             # force lane change of the right vehicle to ego vehicle lane
             self.__scenario_force_lane_change__(60, self.vehicle_list[0], True)
+
+    # Function to request next scenario based on certain criteria ,
+    # it should be called periodically to check if conditions for scenario switch are met
+    def nextScenario(self, scenarioId):
+        
+        isScenarioSwitched = False
+
+        if (self.scenarioId != self.unfallScenario + 1):
+            if(self.vehicle.get_location().y < self.scenarioStopCriteria):
+                self.initScenario(scenarioId)
+                isScenarioSwitched = True    
+        else:
+            pass
+            # if scenario is unfall check if ego vehicle is not moving for certain amount of time
+            #if(self.unfallTimerStarted == False):
+            #    print("timer start")
+            #    self.unfallTimeStart = datetime.now()
+            #    self.unfallTimerStarted = True
+
+            #elapsedTime = datetime.now() - self.unfallTimeStart 
+            #print(elapsedTime)
+            #if(elapsedTime > self.unfallScenarioStopCriteria):
+            #    isScenarioSwitched = True
+            
+        return isScenarioSwitched
 
     def __spawnScenarioVehicles__(self, vehPosX, vehPosY):
         vehicle_bps = self.world.get_blueprint_library().filter('vehicle.*.*')   # don't specify the type of vehicle
@@ -110,8 +149,7 @@ class SimScenarioRunner:
 
         spawn_points = self.world.get_map().get_spawn_points()
         
-        # generate special vehicles for scenario 3
-        #print(self.world.get_blueprint_library().filter('vehicle.*'))
+        # generate special vehicles for unfall scenario
         if(self.scenarioId == self.unfallScenario):
             vehicle_list += self.__scenario_unfall__(vehPosX, vehPosY)
 

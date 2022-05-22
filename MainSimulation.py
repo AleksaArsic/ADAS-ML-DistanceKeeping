@@ -47,7 +47,6 @@ except ImportError:
 
 """ Import all essential custom classes 
 """
-from scripts.CustomTimer import CustomTimer
 from scripts.DisplayManager import DisplayManager
 from scripts.SimulationData import SimulationData
 from scripts.SimpleMovingAverage import SimpleMovingAverage
@@ -110,16 +109,17 @@ targetImgHeight = 370    # image heigth on which CNN was trained
 gScenario01VehPos = [[], []] # empty road
 gScenario02VehPos = [[0, -3, 3, 7, -3, 3, 7], [-80, -40, -35, -30, -5, -10, -7]] # ongoing traffic 
 gScenario03VehPos = [[-3, 3, 7, -3, 3, 7], [-40, -35, -30, -15, -20, -15]] # ongoing traffic, no leading vehicle
-gScenario04VehPos = [[-4, 1, 6, -1.5, -4, 2, 6, -4, 2, 6], [-300, -305, -295, -277, -248, -253, -270, -256, -262, -252]] # unfall
+gScenario04VehPos = [[-3, 3], [-100, -100]] # cutting in front of ego vehicle
 gScenario05VehPos = [[-3, 3], [-100, -100]] # cutting in front of ego vehicle
+gScenario06VehPos = [[-4, 1, 6, -1.5, -4, 2, 6, -4, 2, 6], [-300, -305, -295, -277, -248, -253, -270, -256, -262, -252]] # unfall
 
 # gSpawnMatrix 
 # passed as parameter to SimScenarioRunner class
-gSpawnMatrix = [gScenario05VehPos, gScenario04VehPos, gScenario02VehPos, gScenario03VehPos, gScenario01VehPos]
+gSpawnMatrix = [gScenario01VehPos, gScenario02VehPos, gScenario03VehPos, gScenario04VehPos, gScenario05VehPos, gScenario06VehPos]
 
 # gEgoSpawnId 
 # passed as parameter to SimScenarioRunner class
-gEgoSpawnId = [120, 120, 120, 120]
+gEgoSpawnId = [120, 120, 120, 120, 120, 120]
 #################################################################################################################
 
 def ego_vehicle_control(vehicle, smaPredictions, safeToAccBuff, pidLongitudinalController):
@@ -326,7 +326,6 @@ def run_simulation(args, client):
     display_manager = None
     vehicle = None
     vehicle_list = []
-    timer = CustomTimer()
 
     try:
 
@@ -397,17 +396,19 @@ def run_simulation(args, client):
             display_manager.render()
 
             # run trough different scenarios using SimScenarioRunner in simulation mode
-            if(args.training == 'simulation' and vehicle.get_transform().location.y < -150.0):
+            if(args.training == 'simulation'):
                 if(scenarioId < len(gSpawnMatrix) - 1):
-                    scenarioId += 1
-                    sim_runner.initScenario(scenarioId)
-                    # get ego vehicle from sim_runner
-                    vehicle = sim_runner.getEgoVehicle()
+                    scenarioIsSwitched = sim_runner.nextScenario(sim_runner.getCurrentScenarioId() + 1)
 
-                    # get vehicle list from sim_runner
-                    vehicle_list = sim_runner.getVehicleList()
+                    if(scenarioIsSwitched):
+                        scenarioId += 1
+                        # get ego vehicle from sim_runner
+                        vehicle = sim_runner.getEgoVehicle()
 
-                    print("Simulation running... Scenario %d" % sim_runner.getCurrentScenarioId())
+                        # get vehicle list from sim_runner
+                        vehicle_list = sim_runner.getVehicleList()
+
+                        print("Simulation running... Scenario %d" % sim_runner.getCurrentScenarioId())
                 else:
                     print("Simulation running finished.")
                     break # break simulation loop
