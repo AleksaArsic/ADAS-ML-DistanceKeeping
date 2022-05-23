@@ -18,7 +18,7 @@ from scripts.PIDLongitudinalController import PIDLongitudinalController
 class SimScenarioRunner:
     def __init__(self, client, displayManager, spawnMatrix, egoSpawnId):
         
-        self.scenarioId = 0 # by default scenarioId is 0
+        self.scenarioId = 1 # by default scenarioId is 0
 
         # This could be generalized and placed in a list that is passed as parameter of the class constructor
         # thus SimScenarioRunner would have one more layer of abstraction. 
@@ -125,9 +125,9 @@ class SimScenarioRunner:
         if (self.scenarioId != self.unfallScenario + 1):
             if(self.vehicle.get_location().y < self.scenarioStopCriteria):
                 self.initScenario(scenarioId)
-                isScenarioSwitched = True    
-        else:
-            pass
+                isScenarioSwitched = True   
+        #else:
+            
             # if scenario is unfall check if ego vehicle is not moving for certain amount of time
             #if(self.unfallTimerStarted == False):
             #    print("timer start")

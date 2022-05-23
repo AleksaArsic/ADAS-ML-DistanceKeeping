@@ -85,6 +85,7 @@ ego_location_spawn = carla.Location(x=586.856873, y=-17.063015, z=0.300000) #ego
 ego_transform_spawn = carla.Rotation(pitch=0.000000, yaw=-180.035, roll=0.000000) # ego vehicle initial spawn rotation
 ego_speed_limit = 80 # ego vehicle speed limit in km/h
 ego_keep_distance_speed = 0 # store vehicle speed when neural network predicts that the vehicle should keep distance
+ego_keep_distance_speed_initial = 0 # store initial keep distance speed of ego vehicle
 ego_keep_distance_saved = False # store boolean whether ego_keep_distance_speed is saved or not
 safeToAccPrev = 0 # previous value of cnn prediction of safeToAcc
 #################################################################################################################
@@ -126,6 +127,7 @@ def ego_vehicle_control(vehicle, smaPredictions, safeToAccBuff, pidLongitudinalC
     # variable to store current speed when neural network predicts that 
     # ego vehicle should keep distance to the leading vehicle
     global ego_keep_distance_speed
+    global ego_keep_distance_speed_initial
     global ego_keep_distance_saved
     global safeToAccPrev
 
@@ -136,7 +138,6 @@ def ego_vehicle_control(vehicle, smaPredictions, safeToAccBuff, pidLongitudinalC
 
     # extract cnn predictions
     lSafeToAcc = smaPredictions.getSMABuffer()[4]
-    lSafeToAccPrev = safeToAccPrev
 
     velocity_kmh = pidLongitudinalController.get_speed(vehicle)
 
@@ -154,28 +155,35 @@ def ego_vehicle_control(vehicle, smaPredictions, safeToAccBuff, pidLongitudinalC
         # False
         if (ego_keep_distance_saved == True):
             ego_keep_distance_saved = False
+            ego_keep_distance_speed = 0
 
         accelerate_rate = pid_control
 
     elif (lSafeToAcc > gSafeToAccThreshold and lSafeToAcc < gNotSafeToAccThreshold):
 
         roc =  ((safeToAccBuff[-1] / safeToAccBuff[0]) - 1) * 100
-        #print(roc)
+        print(roc)
         #print(abs(safeToAccBuff[0] - safeToAccBuff[-1]))
         # keep distance from leading vehicle, keep current speed
         if(ego_keep_distance_saved == False):
             ego_keep_distance_saved = True
             ego_keep_distance_speed = velocity_kmh - gKeepDistanceSpeedSubtract # maintain a speed that is a little bit less than current speed
+            ego_keep_distance_speed_initial = ego_keep_distance_speed
         
         print("keep")
         if ((ego_keep_distance_saved == True) and (abs(safeToAccBuff[0] - safeToAccBuff[-1]) > 0.05) and (roc > 0)):
-            ego_keep_distance_speed = ego_keep_distance_speed - gKeepDistanceSpeedSubtract
-            print("again")
-        #elif ((ego_keep_distance_saved == True) and (abs(safeToAccBuff[0] - safeToAccBuff[-1]) > 0.05) and (roc < 0)):
-        #    ego_keep_distance_speed = ego_keep_distance_speed + gKeepDistanceSpeedSubtract
+            if(ego_keep_distance_speed > (ego_keep_distance_speed_initial / 2)):
+                ego_keep_distance_speed = ego_keep_distance_speed - gKeepDistanceSpeedSubtract
+                print("again--")
+        elif ((ego_keep_distance_saved == True) and (abs(safeToAccBuff[0] - safeToAccBuff[-1]) > 0.05) and (roc < 0)):
+            if(ego_keep_distance_speed < (ego_keep_distance_speed_initial + (ego_keep_distance_speed_initial * 1/3))):
+                ego_keep_distance_speed = ego_keep_distance_speed + (gKeepDistanceSpeedSubtract / 2)
+                print("again++")
 
-            if (ego_keep_distance_speed < 0.0):
-                ego_keep_distance_speed = 0.0
+        if (ego_keep_distance_speed < 0.0):
+            ego_keep_distance_speed = 0.0
+        elif (ego_keep_distance_speed > ego_speed_limit):
+            ego_keep_distance_speed = ego_speed_limit
 
         #print(ego_keep_distance_speed)
 
