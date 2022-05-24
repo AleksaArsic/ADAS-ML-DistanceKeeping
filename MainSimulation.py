@@ -52,6 +52,7 @@ from scripts.SimulationData import SimulationData
 from scripts.SimpleMovingAverage import SimpleMovingAverage
 from scripts.SimScenarioRunner import SimScenarioRunner
 from scripts.HUD import HUD
+from scripts.PIDLongitudinalController import PIDLongitudinalController
 from cnn.cnn import create_cnn_model
 
 #################################################################################################################
@@ -123,6 +124,26 @@ gSpawnMatrix = [gScenario01VehPos, gScenario02VehPos, gScenario03VehPos, gScenar
 gEgoSpawnId = [120, 120, 120, 120, 120, 120]
 #################################################################################################################
 
+#################################################################################################################
+# PID Longitudinal Controller Kp, Ki, Kd Grid search
+# 3-d space
+gPIDParameters = [[1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1], # Kp
+                  [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1], # Ki
+                  [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]] # Kd
+
+# grid search indexes
+n = 0
+i = 0
+j = 0
+k = 0
+
+# grid search save data path
+gGridSearchDataPath = 'pid_grid_search/'
+
+# grid search data container
+pidGridSearchData = SimulationData(False)
+#################################################################################################################
+
 def ego_vehicle_control(vehicle, smaPredictions, safeToAccBuff, pidLongitudinalController):
     # variable to store current speed when neural network predicts that 
     # ego vehicle should keep distance to the leading vehicle
@@ -137,95 +158,116 @@ def ego_vehicle_control(vehicle, smaPredictions, safeToAccBuff, pidLongitudinalC
     #print(safeToAccBuff)
 
     # extract cnn predictions
+    vehPresent = smaPredictions.getSMABuffer()[0]
     lSafeToAcc = smaPredictions.getSMABuffer()[4]
 
-    velocity_kmh = pidLongitudinalController.get_speed(vehicle)
+    if(vehPresent < 0.5):
+        velocity_kmh = pidLongitudinalController.get_speed(vehicle)
 
-    # check lSafeToAcc parameter
-    # if neural network predicts that vehicle should accelerate, acceleration should be possible if within road limit
-    # if neural netowrk predicts that vehicle should keep distance, the speed should be stay the same as current speed
-    # if neural network predicts that vehicle should brake, the speed should decrease to the point where neural network 
-    #       predicts that it should keep distance or possibly accelerate
-    if(lSafeToAcc <= gSafeToAccThreshold): 
-        # it is safe to accelerate, accelerate within road limit
-        pid_control = pidLongitudinalController.run_step(ego_speed_limit)
+        # check lSafeToAcc parameter
+        # if neural network predicts that vehicle should accelerate, acceleration should be possible if within road limit
+        # if neural netowrk predicts that vehicle should keep distance, the speed should be stay the same as current speed
+        # if neural network predicts that vehicle should brake, the speed should decrease to the point where neural network 
+        #       predicts that it should keep distance or possibly accelerate
+        if(lSafeToAcc <= gSafeToAccThreshold): 
+            # it is safe to accelerate, accelerate within road limit
+            pid_control = pidLongitudinalController.run_step(ego_speed_limit)
 
-        # if ego_keep_distance_speed is saved in previous iterations and state changed to state when 
-        # neural network predicted that it is safe to accelerate, change boolean ego_keep_distance_saved to
-        # False
-        if (ego_keep_distance_saved == True):
-            ego_keep_distance_saved = False
-            ego_keep_distance_speed = 0
+            # if ego_keep_distance_speed is saved in previous iterations and state changed to state when 
+            # neural network predicted that it is safe to accelerate, change boolean ego_keep_distance_saved to
+            # False
+            if (ego_keep_distance_saved == True):
+                ego_keep_distance_saved = False
+                ego_keep_distance_speed = 0
 
-        accelerate_rate = pid_control
+            accelerate_rate = pid_control
 
-    elif (lSafeToAcc > gSafeToAccThreshold and lSafeToAcc < gNotSafeToAccThreshold):
+        elif (lSafeToAcc > gSafeToAccThreshold and lSafeToAcc < gNotSafeToAccThreshold):
 
-        roc =  ((safeToAccBuff[-1] / safeToAccBuff[0]) - 1) * 100
-        print(roc)
-        #print(abs(safeToAccBuff[0] - safeToAccBuff[-1]))
-        # keep distance from leading vehicle, keep current speed
-        if(ego_keep_distance_saved == False):
-            ego_keep_distance_saved = True
-            ego_keep_distance_speed = velocity_kmh - gKeepDistanceSpeedSubtract # maintain a speed that is a little bit less than current speed
-            ego_keep_distance_speed_initial = ego_keep_distance_speed
-        
-        print("keep")
-        if ((ego_keep_distance_saved == True) and (abs(safeToAccBuff[0] - safeToAccBuff[-1]) > 0.05) and (roc > 0)):
-            if(ego_keep_distance_speed > (ego_keep_distance_speed_initial / 2)):
-                ego_keep_distance_speed = ego_keep_distance_speed - gKeepDistanceSpeedSubtract
-                print("again--")
-        elif ((ego_keep_distance_saved == True) and (abs(safeToAccBuff[0] - safeToAccBuff[-1]) > 0.05) and (roc < 0)):
-            if(ego_keep_distance_speed < (ego_keep_distance_speed_initial + (ego_keep_distance_speed_initial * 1/3))):
-                ego_keep_distance_speed = ego_keep_distance_speed + (gKeepDistanceSpeedSubtract / 2)
-                print("again++")
+            roc =  ((safeToAccBuff[-1] / safeToAccBuff[0]) - 1) * 100
+            print(roc)
+            #print(abs(safeToAccBuff[0] - safeToAccBuff[-1]))
+            # keep distance from leading vehicle, keep current speed
+            if(ego_keep_distance_saved == False):
+                ego_keep_distance_saved = True
+                ego_keep_distance_speed = velocity_kmh - gKeepDistanceSpeedSubtract # maintain a speed that is a little bit less than current speed
+                ego_keep_distance_speed_initial = ego_keep_distance_speed
+                print(ego_keep_distance_speed_initial)
+            
+            print("keep")
+            if ((ego_keep_distance_saved == True) and (abs(safeToAccBuff[0] - safeToAccBuff[-1]) > 0.05) and (roc > 0)):
+                if(ego_keep_distance_speed > (ego_keep_distance_speed_initial / 2)):
+                    ego_keep_distance_speed = ego_keep_distance_speed - gKeepDistanceSpeedSubtract
+                    print("again--")
+            elif ((ego_keep_distance_saved == True) and (abs(safeToAccBuff[0] - safeToAccBuff[-1]) > 0.05) and (roc < 0)):
+                if(ego_keep_distance_speed < (ego_keep_distance_speed_initial + (ego_keep_distance_speed_initial * 1/3))):
+                    ego_keep_distance_speed = ego_keep_distance_speed + (gKeepDistanceSpeedSubtract / 2)
+                    print("again++")
 
-        if (ego_keep_distance_speed < 0.0):
-            ego_keep_distance_speed = 0.0
-        elif (ego_keep_distance_speed > ego_speed_limit):
-            ego_keep_distance_speed = ego_speed_limit
+            if (ego_keep_distance_speed < 0.0):
+                ego_keep_distance_speed = 0.0
+            elif (ego_keep_distance_speed > ego_speed_limit):
+                ego_keep_distance_speed = ego_speed_limit
 
-        #print(ego_keep_distance_speed)
+            #print(ego_keep_distance_speed)
 
-        pid_control = pidLongitudinalController.run_step(ego_keep_distance_speed)
-        accelerate_rate = pid_control
-    else: 
-        # it is not safe to accelerate, brake
-        pid_control = pidLongitudinalController.run_step(0)#velocity_kmh - gBrakeKMHStep)
+            pid_control = pidLongitudinalController.run_step(ego_keep_distance_speed)
+            accelerate_rate = pid_control
+        else: 
+            # it is not safe to accelerate, brake
+            pid_control = pidLongitudinalController.run_step(0)#velocity_kmh - gBrakeKMHStep)
 
-        # check different thresholds of not safeToAcc and apply breaking accordingly 
+            # check different thresholds of not safeToAcc and apply breaking accordingly 
 
-        # if ego_keep_distance_saved is True there is no need to restore it to False
-        # This is benefitial in a way that if the vehicle came to a complete stop
-        # because leading vehicle is stopped, we want it to begin moving after
-        # leading vehicle started moving again
+            # if ego_keep_distance_saved is True there is no need to restore it to False
+            # This is benefitial in a way that if the vehicle came to a complete stop
+            # because leading vehicle is stopped, we want it to begin moving after
+            # leading vehicle started moving again
 
-        brake_rate = abs(pid_control)
+            brake_rate = abs(pid_control)
 
-    # if vehicle velocity is less than road limit apply throttle or brake and steer
-    if(velocity_kmh < ego_speed_limit):
-        
-        # control of steering for town06
-        # at specific location apply steering to stay in lane
-        vehicle_loc_x = vehicle.get_location().x 
+        # if vehicle velocity is less than road limit apply throttle or brake and steer
+        if(velocity_kmh < ego_speed_limit):
+            
+            # control of steering for town06
+            # at specific location apply steering to stay in lane
+            vehicle_loc_x = vehicle.get_location().x 
 
-        steer_in = 0.0
+            steer_in = 0.0
 
-        # if location x <= 140 and x > 139 add some steering to the left to keep in lane
-        #if((vehicle_loc_x <= 140 and vehicle_loc_x > 139)):
-        #    steer_in = -0.085
+            # if location x <= 140 and x > 139 add some steering to the left to keep in lane
+            #if((vehicle_loc_x <= 140 and vehicle_loc_x > 139)):
+            #    steer_in = -0.085
 
-        # apply control obtained trough PID Longitudinal Controller based on the outputs of the CNN
-        if(pid_control >= 0.0):
-            vehicle.apply_control(carla.VehicleControl(throttle = pid_control, steer = 0.0))
+            # apply control obtained trough PID Longitudinal Controller based on the outputs of the CNN
+            if(pid_control >= 0.0):
+                vehicle.apply_control(carla.VehicleControl(throttle = pid_control, steer = 0.0))
+            else:
+                vehicle.apply_control(carla.VehicleControl(brake = abs(pid_control), steer = 0.0))
         else:
-            vehicle.apply_control(carla.VehicleControl(brake = abs(pid_control), steer = 0.0))
+            vehicle.apply_control(carla.VehicleControl(throttle = 0, steer = 0))
+
+        # save previous value of safeToAcc
+        safeToAccPrev = lSafeToAcc
+
     else:
-        vehicle.apply_control(carla.VehicleControl(throttle = 0, steer = 0))
+        # if there are no vehicles on the road apply throttle without thinking
+        pid_control = pidLongitudinalController.run_step(ego_speed_limit)
+        vehicle.apply_control(carla.VehicleControl(throttle = pid_control, steer = 0))
 
-    # save previous value of safeToAcc
-    safeToAccPrev = lSafeToAcc
+    # grid search 
+    #############
+    throttle = 0
+    brake = 0
+    steer  = 0
+    if(pid_control > 0):
+        throttle = pid_control
+    else:
+        brake = pid_control
 
+    pidGridSearchData.add_data(throttle, brake, steer)
+    #############
+    
     return [accelerate_rate, brake_rate, ego_keep_distance_speed]
 
 def ego_vehicle_manual_control(vehicle, keys):
@@ -323,11 +365,35 @@ def cnn_processing(cnn_model, current_frame, smaPredictions):
 
     return [cnn_predictions[0], smaPredictions.getSMABuffer()]
 
+def calculateGridSearchIndexes(grid, i, j, k):
+
+    # calculate grid search indexes based on the current indexes and grid
+    if(k < len(grid[2]) - 1):
+        k += 1
+    else:
+        k = 0
+        
+        if(j < len(grid[1]) - 1):
+            j += 1
+        else:
+            j = 0
+            
+            if(i < len(grid[1]) - 1):
+                i += 1
+            else:
+                i = 0
+        
+    return [i, j, k]
+
 def run_simulation(args, client):
     """This function performed one test run using the args parameters
     and connecting to the carla client passed.
     """
 
+    # grid search 
+    #############
+    global i, j, k
+    #############
     global gRecord_data
     global gData_collected
 
@@ -358,7 +424,7 @@ def run_simulation(args, client):
         display_manager = DisplayManager(hud, grid_size=[1, 1], window_size=[args.width, args.height])
 
         # Instanciating SimulationData in which we will save vehicle state if 'R' is pressed
-        sim_data = SimulationData()
+        sim_data = SimulationData(True)
 
         # initialize scenario runner
         sim_runner = SimScenarioRunner(client, display_manager, gSpawnMatrix, gEgoSpawnId)
@@ -405,10 +471,24 @@ def run_simulation(args, client):
 
             # run trough different scenarios using SimScenarioRunner in simulation mode
             if(args.training == 'simulation'):
-                if(scenarioId < len(gSpawnMatrix) - 1):
-                    scenarioIsSwitched = sim_runner.nextScenario(sim_runner.getCurrentScenarioId() + 1)
+                # PID Longitudinal controller grid search
+                scenarioId = 1
+                if(scenarioId < len(gSpawnMatrix)):
+                    scenarioIsSwitched = sim_runner.nextScenario(1)#sim_runner.getCurrentScenarioId() + 1)
 
                     if(scenarioIsSwitched):
+                        # grid search 
+                        #############
+                        # calculate grid search indexes
+                        temp = calculateGridSearchIndexes(gPIDParameters, i, j, k)
+                        i, j, k = temp[0], temp[1], temp[2]
+                        sim_runner.setPIDLongitudinalController(PIDLongitudinalController(sim_runner.getEgoVehicle(), 
+                                                                gPIDParameters[n][i], gPIDParameters[n + 1][j], gPIDParameters[n + 2][k]))
+                        print(sim_runner.getPIDLongitudinalController().get_parameters())
+
+                        pidGridSearchData.export_csv(gGridSearchDataPath)
+                        pidGridSearchData.clear_data()
+                        #############
                         scenarioId += 1
                         # get ego vehicle from sim_runner
                         vehicle = sim_runner.getEgoVehicle()
@@ -417,12 +497,12 @@ def run_simulation(args, client):
                         vehicle_list = sim_runner.getVehicleList()
 
                         print("Simulation running... Scenario %d" % sim_runner.getCurrentScenarioId())
-                else:
+                else: 
                     print("Simulation running finished.")
                     break # break simulation loop
 
             # call SimScenarioRunner periodic function
-            sim_runner.periodicScenario()
+            sim_runner.periodicSimScenarioRunner()
 
             # get latest frame from RGBCamera
             current_frame = np.asarray(sim_runner.getRGBCamera().current_frame)

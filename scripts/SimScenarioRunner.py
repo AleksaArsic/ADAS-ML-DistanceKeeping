@@ -26,8 +26,7 @@ class SimScenarioRunner:
         self.laneChangeScenarioEasy = 4
         self.unfallScenario = 5
 
-        self.scenarioStopCriteria = -150
-        self.unfallScenarioStopCriteria = 45
+        self.scenarioStopCriteria = 150#-30 #-150
 
         self.unfallTimeStart = 0
         self.unfallTimerStarted = False
@@ -64,11 +63,14 @@ class SimScenarioRunner:
     def getVehicleList(self):
         return self.vehicle_list
 
-    def destroyVehicle(self):
-        self.vehicle.destroy()
-
     def getCurrentScenarioId(self):
         return self.scenarioId
+
+    def setPIDLongitudinalController(self, pidController):
+        self.pidLongitudinalController = pidController
+
+    def destroyVehicle(self):
+        self.vehicle.destroy()
 
     # Function used for initializing different scenarios. 
     # should be called only once per scenario initialization.
@@ -107,11 +109,11 @@ class SimScenarioRunner:
     # it should be called periodically regradless of scenario.
     # Used for generating traffic that does not have static behvaiour or 
     # needs to be changed in runtime considering different conditions
-    def periodicScenario(self):
+    def periodicSimScenarioRunner(self):
         
         if (self.laneChangeScenarioHard == self.scenarioId):
             # force lane change of the left vehicle to ego vehicle lane
-            self.__scenario_force_lane_change__(30, self.vehicle_list[1], False)
+            self.__scenario_force_lane_change__(40, self.vehicle_list[1], False)
         elif (self.laneChangeScenarioEasy == self.scenarioId):
             # force lane change of the right vehicle to ego vehicle lane
             self.__scenario_force_lane_change__(60, self.vehicle_list[0], True)
@@ -122,22 +124,11 @@ class SimScenarioRunner:
         
         isScenarioSwitched = False
 
-        if (self.scenarioId != self.unfallScenario + 1):
+        if(scenarioId < len(self.spawnMatrix)): 
+            #if (self.scenarioId != scenarioId):
             if(self.vehicle.get_location().y < self.scenarioStopCriteria):
                 self.initScenario(scenarioId)
                 isScenarioSwitched = True   
-        #else:
-            
-            # if scenario is unfall check if ego vehicle is not moving for certain amount of time
-            #if(self.unfallTimerStarted == False):
-            #    print("timer start")
-            #    self.unfallTimeStart = datetime.now()
-            #    self.unfallTimerStarted = True
-
-            #elapsedTime = datetime.now() - self.unfallTimeStart 
-            #print(elapsedTime)
-            #if(elapsedTime > self.unfallScenarioStopCriteria):
-            #    isScenarioSwitched = True
             
         return isScenarioSwitched
 
@@ -227,4 +218,3 @@ class SimScenarioRunner:
         if(abs(ego_position.y - veh_left_lane_position.y) < distance and abs(ego_position.x - veh_left_lane_position.x) > 2.5):
             tm = self.client.get_trafficmanager()
             tm.force_lane_change(veh, direction)
-            print("lane change")

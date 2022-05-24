@@ -1,11 +1,15 @@
 import glob
 import os
+from datetime import datetime
+
 
 class SimulationData:
-    def __init__(self):
+    def __init__(self, saveImages):
         self.throttle = []
         self.brake = []
         self.steer = []
+
+        self.saveImages = saveImages
 
     def add_to_throttle(self, throttle):
         self.throttle.append(throttle)
@@ -21,25 +25,41 @@ class SimulationData:
         self.brake.append(brake)
         self.steer.append(steer)
 
-    def export_csv(self, img_path):
+    def export_csv(self, path):
         # Format: img_name, throttle, break, steer
 
-        csv_file = open(os.path.join(img_path, 'MainSimulation_out.csv'), "w") 
+        csv_file = open(os.path.join(path, 'MainSimulation_' + datetime.now().strftime("%m_%d_%Y_%H_%M_%S") + '.csv'), "w") 
         filenames = []
 
-        # get image names
-        os.chdir(img_path)
-        for imagePath in glob.glob("*.jpg"):
-            filenames.append(os.path.basename(imagePath))
+        size = 0
+        if (self.saveImages):
+            # get image names
+            os.chdir(path)
+            for imagePath in glob.glob("*.jpg"):
+                filenames.append(os.path.basename(imagePath))
 
-        # write first line in output .csv file
-        line = 'img_name, throttle, break, steer\n'
+            size = len(filenames)
 
-        csv_file.write(line)
+            # write first line in output .csv file
+            line = 'img_name, throttle, break, steer\n'
+
+            csv_file.write(line)
+        else:
+            # write first line in output .csv file
+            line = 'img_name, throttle, break, steer\n'
+
+            csv_file.write(line)
+
+            size = len(self.throttle)
 
         # write the rest of recorded data to output .csv file
-        for i in range(len(filenames)):
-            line = filenames[i] + ',' + str(self.throttle[i]) + ',' + str(self.brake[i]) + ',' + str(self.steer[i]) + '\n'
+        for i in range(size):
+            line = []
+            if(self.saveImages):
+                line = filenames[i] + ',' + str(self.throttle[i]) + ',' + str(self.brake[i]) + ',' + str(self.steer[i]) + '\n'
+            else:
+                line = str(self.throttle[i]) + ',' + str(self.brake[i]) + ',' + str(self.steer[i]) + '\n'
+
             csv_file.write(line)
 
         csv_file.close()
