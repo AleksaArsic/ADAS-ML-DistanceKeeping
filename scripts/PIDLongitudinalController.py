@@ -65,7 +65,7 @@ class PIDLongitudinalController():
             _de = 0.0
             _ie = 0.0
 
-        res = np.clip((self._k_p * error) + (self._k_d * _de) + (self._k_i * _ie), -1.0, 1.0)
+        res = np.clip((self._k_p * error) + (self._k_d * _de) + (self._k_i * _ie), -0.7, 0.7)
 
         return res
 
