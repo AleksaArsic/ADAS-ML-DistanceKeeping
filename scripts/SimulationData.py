@@ -25,10 +25,10 @@ class SimulationData:
         self.brake.append(brake)
         self.steer.append(steer)
 
-    def export_csv(self, path):
+    def export_csv(self, path, sufix = ''):
         # Format: img_name, throttle, break, steer
 
-        csv_file = open(os.path.join(path, 'MainSimulation_' + datetime.now().strftime("%m_%d_%Y_%H_%M_%S") + '.csv'), "w") 
+        csv_file = open(os.path.join(path, 'MainSimulation_' + datetime.now().strftime("%m_%d_%Y_%H_%M_%S") + '_' + str(sufix) + '.csv'), "w") 
         filenames = []
 
         size = 0
@@ -46,7 +46,7 @@ class SimulationData:
             csv_file.write(line)
         else:
             # write first line in output .csv file
-            line = 'img_name, throttle, break, steer\n'
+            line = 'throttle, break, steer\n'
 
             csv_file.write(line)
 

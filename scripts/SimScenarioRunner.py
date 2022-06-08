@@ -26,7 +26,7 @@ class SimScenarioRunner:
         self.laneChangeScenarioEasy = 4
         self.unfallScenario = 5
 
-        self.scenarioStopCriteria = 150#-30 #-150
+        self.scenarioStopCriteria = -150 #-150
 
         self.unfallTimeStart = 0
         self.unfallTimerStarted = False
@@ -81,8 +81,9 @@ class SimScenarioRunner:
 
         # if any, destroy vehicles from previous scenario
         if(len(self.vehicle_list)):
-            for v in self.vehicle_list:
-                v.destroy()
+            self.client.apply_batch([carla.command.DestroyActor(x) for x in self.vehicle_list])
+        #    for v in self.vehicle_list:
+        #        v.destroy()
 
         # Instanciating the vehicle to which we attached the sensors
         bp = random.choice(self.world.get_blueprint_library().filter('vehicle.bmw.*'))
@@ -94,7 +95,7 @@ class SimScenarioRunner:
         spawn_points = self.world.get_map().get_spawn_points()
         #for i in range(len(spawn_points)):
         #    print("SP[" + str(i) + "]: " + str(spawn_points[i]))
-        self.vehicle = self.world.spawn_actor(bp, spawn_points[self.egoSpawnId[scenarioId]])        
+        self.vehicle = self.world.spawn_actor(bp, spawn_points[self.egoSpawnId[scenarioId]])
         self.vehicle_list.append(self.vehicle)
 
         # RGBCamera can be used to spawn RGB Camera as needed
@@ -165,7 +166,7 @@ class SimScenarioRunner:
                 v.set_autopilot(True, tm_port)  # you can get those functions detail in carla document
                 tm.auto_lane_change(v,False)    # disable auto lane change
                 tm.distance_to_leading_vehicle(v, 0.5)  # leave safety distance to leading vehicle 
-                tm.vehicle_percentage_speed_difference(v, -20) # drive 20 percent faster than current speed limit
+                tm.vehicle_percentage_speed_difference(v, -40) # drive 20 percent faster than current speed limit
 
         return vehicle_list
 

@@ -10,8 +10,12 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 
 import numpy as np
+from sqlalchemy import func
 
-directory = '../pid_grid_search/' # directory with grid search .csv files
+directory = '../pid_grid_search_3/' # directory with grid search .csv files
+
+minGoodnessThreshold = -0.7
+maxGoodnessThreshold = 0.7
 
 def parseCSVFile(csvPath):
     data = []
@@ -80,8 +84,28 @@ def generateIndividualTime(timeStep, throttle, brake):
 
     return time
 
+def calculateGoodness(function, min, max):
+
+    cntMin = 0
+    cntMax = 0
+    cntNonZero = 0
+
+    for i in range(len(function)):
+        if(function[i] < 0):
+            cntNonZero += 1
+            if(function[i] > min):
+                cntMin += 1
+        elif(function[i] > 0):
+            cntNonZero += 1
+            if(function[i] < max):
+                cntMax += 1
+
+    return ((0.5 * cntMin) + (0.5 * cntMax)) / cntNonZero
+
 # plot analysis data 
 def plotAnalysis(throttle, brake, throttleBrake, longestTime, time, outputDir):
+
+    plt.clf()
 
     #Plottig the throttle and brake functions
     plt.figure(figsize=(30, 10))
@@ -117,16 +141,6 @@ def plotAnalysis(throttle, brake, throttleBrake, longestTime, time, outputDir):
 if __name__ == "__main__":
     script_start = datetime.now()
 
-    outputFolder = './PIDLongCtrlGSAnalysis_output_' + datetime.now().strftime("%m_%d_%Y_%H_%M_%S")
-
-    # create output folder
-    if not os.path.exists(outputFolder):
-        os.makedirs(outputFolder)
-    else:
-        print("Folder with the name " + str(outputFolder) + " already exists. Possible loss of data.")
-        print("Aborting...")
-        sys.exit()
-
     # get all .csv filenames from directory
     filenames = []
 
@@ -138,7 +152,8 @@ if __name__ == "__main__":
     bestThrottle = []
     bestBrake = []
     bestThrottleBrakeFun = []
-    for i in range(3):#len(filenames)):
+    goodness = []
+    for i in range(len(filenames)):
 
         # parse each .csv file
         data = parseCSVFile(filenames[i])
@@ -155,19 +170,41 @@ if __name__ == "__main__":
         # combine throttle and brake in one function
         throttleBrakeFun = combineThrottleBrake(throttle, brake)
 
-        # calculate how good is throttle, brake, throttleBrakeFun
+        # calculate how good is throttleBrakeFun
+        goodness.append(calculateGoodness(throttleBrakeFun, minGoodnessThreshold, maxGoodnessThreshold))
 
         # save best throttle, brake, throttleBrakeFun
-        bestThrottle = throttle
-        bestBrake = brake
-        bestThrottleBrakeFun = throttleBrakeFun
+        bestThrottle.append(throttle)
+        bestBrake.append(brake)
+        bestThrottleBrakeFun.append(throttleBrakeFun)
 
-    # save best analysis result
-    longestTime = generateIndividualTime(0.05, throttle, brake)
-    time = generateTime(0.05, len(throttle))
+        if(goodness[-1] >= 0.20):
 
-    # plot best analysis result
-    plotAnalysis(throttle, brake, throttleBrakeFun, longestTime, time, outputFolder)
+            outputFolder = './PIDLongCtrlGSAnalysis_output_' + datetime.now().strftime("%m_%d_%Y_%H_%M_%S") + "_" + str(goodness[-1])
+
+            # create output folder
+            if not os.path.exists(outputFolder):
+                os.makedirs(outputFolder)
+            else:
+                print("Folder with the name " + str(outputFolder) + " already exists. Possible loss of data.")
+                print("Aborting...")
+                sys.exit()
+
+            # find best function
+            #goodness.sort(reverse=True)
+            #bestGoodness = max(goodness)
+            #idx = goodness.index(bestGoodness)
+
+            # save best analysis result
+            longestTime = generateIndividualTime(0.05, throttle, brake)
+            time = generateTime(0.05, len(throttle))
+
+            # plot best analysis result
+            plotAnalysis(throttle, brake, throttleBrakeFun, longestTime, time, outputFolder)
+            print(goodness[-1])
+            print(filenames[i])
     
+    print(goodness)
+
     script_end = datetime.now()
     print(script_end - script_start)
