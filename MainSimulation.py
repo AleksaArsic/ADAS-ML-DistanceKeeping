@@ -7,6 +7,7 @@
 
 import glob
 import os
+from re import L
 import sys
 
 import cv2
@@ -73,9 +74,9 @@ output_no = 5       # number of outputs of the CNN model
 #################################################################################################################
 # constants
 gSafeToAccThreshold = 0.4
-gNotSafeToAccThreshold = 0.6
+gNotSafeToAccThreshold = 0.7
 gBrakeKMHStep = 2.5
-gKeepDistanceSpeedSubtract = 7.5
+gKeepDistanceSpeedSubtract = 3
 gSMABufferLen = 10
 #################################################################################################################
 
@@ -127,9 +128,9 @@ gEgoSpawnId = [120, 120, 120, 120, 120, 120]
 #################################################################################################################
 # PID Longitudinal Controller Kp, Ki, Kd Grid search
 # 3-d space
-gPIDParameters = [[1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1], # Kp
-                  [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1], # Ki
-                  [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]] # Kd
+gPIDParameters = [[100000, 10000, 1000, 100, 10, 1, 0.1, 0.01, 0.001, 0.0001, 0.00001], # Kp
+                  [100000, 10000, 1000, 100, 10, 1, 0.1, 0.01, 0.001, 0.0001, 0.00001], # Ki
+                  [100000, 10000, 1000, 100, 10, 1, 0.1, 0.01, 0.001, 0.0001, 0.00001]] # Kd
 
 # grid search indexes
 n = 0
@@ -138,7 +139,7 @@ j = 0
 k = 0
 
 # grid search save data path
-gGridSearchDataPath = 'pid_grid_search/'
+gGridSearchDataPath = 'pid_grid_search_3/'
 
 # grid search data container
 pidGridSearchData = SimulationData(False)
@@ -196,7 +197,7 @@ def ego_vehicle_control(vehicle, smaPredictions, safeToAccBuff, pidLongitudinalC
             
             print("keep")
             if ((ego_keep_distance_saved == True) and (abs(safeToAccBuff[0] - safeToAccBuff[-1]) > 0.05) and (roc > 0)):
-                if(ego_keep_distance_speed > (ego_keep_distance_speed_initial / 2)):
+                if(ego_keep_distance_speed > 45):
                     ego_keep_distance_speed = ego_keep_distance_speed - gKeepDistanceSpeedSubtract
                     print("again--")
             elif ((ego_keep_distance_saved == True) and (abs(safeToAccBuff[0] - safeToAccBuff[-1]) > 0.05) and (roc < 0)):
@@ -252,6 +253,24 @@ def ego_vehicle_control(vehicle, smaPredictions, safeToAccBuff, pidLongitudinalC
 
     else:
         # if there are no vehicles on the road apply throttle without thinking
+        # grid search
+        '''
+        locationY = vehicle.get_location().y
+
+        desiredSpeed = 0
+        if(locationY > 0):
+            desiredSpeed = ego_speed_limit
+        else:
+            desiredSpeed = 30
+
+        pid_control = pidLongitudinalController.run_step(desiredSpeed)
+        if(pid_control >= 0.0):
+            vehicle.apply_control(carla.VehicleControl(throttle = pid_control, steer = 0.0))
+        else:
+            vehicle.apply_control(carla.VehicleControl(brake = abs(pid_control), steer = 0.0))
+
+        print(str(desiredSpeed) + " " + str(pid_control) + " " + str(locationY))
+        '''
         pid_control = pidLongitudinalController.run_step(ego_speed_limit)
         vehicle.apply_control(carla.VehicleControl(throttle = pid_control, steer = 0))
 
@@ -429,6 +448,12 @@ def run_simulation(args, client):
         # initialize scenario runner
         sim_runner = SimScenarioRunner(client, display_manager, gSpawnMatrix, gEgoSpawnId)
 
+        # grid search 
+        #############
+        sim_runner.setPIDLongitudinalController(PIDLongitudinalController(sim_runner.getEgoVehicle(), 
+                                                                gPIDParameters[n][i], gPIDParameters[n + 1][j], gPIDParameters[n + 2][k]))
+        print(sim_runner.getPIDLongitudinalController().get_parameters())
+        #############
         # get ego vehicle from sim_runner
         vehicle = sim_runner.getEgoVehicle()
 
@@ -474,20 +499,27 @@ def run_simulation(args, client):
                 # PID Longitudinal controller grid search
                 scenarioId = 1
                 if(scenarioId < len(gSpawnMatrix)):
-                    scenarioIsSwitched = sim_runner.nextScenario(1)#sim_runner.getCurrentScenarioId() + 1)
-
+                    scenarioIsSwitched = sim_runner.nextScenario(sim_runner.getCurrentScenarioId() + 1)
+                    scenarioIsSwitched = False
+                    if (vehicle.get_location().y < -50):
+                        scenarioIsSwitched = True
                     if(scenarioIsSwitched):
                         # grid search 
                         #############
                         # calculate grid search indexes
+                        
+                        pidGridSearchData.export_csv(gGridSearchDataPath, sufix=(str(i) + '_' + str(j) + '_' + str(k)))
+                        pidGridSearchData.clear_data()
+
+                        # break game loop
+                        #break
+
                         temp = calculateGridSearchIndexes(gPIDParameters, i, j, k)
                         i, j, k = temp[0], temp[1], temp[2]
                         sim_runner.setPIDLongitudinalController(PIDLongitudinalController(sim_runner.getEgoVehicle(), 
                                                                 gPIDParameters[n][i], gPIDParameters[n + 1][j], gPIDParameters[n + 2][k]))
                         print(sim_runner.getPIDLongitudinalController().get_parameters())
 
-                        pidGridSearchData.export_csv(gGridSearchDataPath)
-                        pidGridSearchData.clear_data()
                         #############
                         scenarioId += 1
                         # get ego vehicle from sim_runner
@@ -559,9 +591,19 @@ def run_simulation(args, client):
 
         world.apply_settings(original_settings)
 
-def main():
+def main(ii = 0, jj = 0, kk = 0):
+
+    # grid search 
+    #############
+    global i, j, k
+    i = ii
+    j = jj
+    k = kk
+    print(str(i) + '_' + str(j) + '_' + str(k))
+    #############
+
     argparser = argparse.ArgumentParser(
-        description='CARLA Sensor tutorial')
+        description='ADAS-ML-DistanceKeeping')
     argparser.add_argument(
         '--host',
         metavar='H',
