@@ -14,7 +14,7 @@ class PIDLongitudinalController():
     PIDLongitudinalController implements longitudinal control using a PID.
     """
 
-    def __init__(self, vehicle, K_P=1.0, K_I=1.0, K_D=1.0, dt=0.05):
+    def __init__(self, vehicle, K_P=1.0, K_I=1.0, K_D=0.1, dt=0.05):
         """
         Constructor method.
 

@@ -52,7 +52,6 @@ from scripts.SimulationData import SimulationData
 from scripts.SimpleMovingAverage import SimpleMovingAverage
 from scripts.SimScenarioRunner import SimScenarioRunner
 from scripts.HUD import HUD
-from scripts.PIDLongitudinalController import PIDLongitudinalController
 from cnn.cnn import create_cnn_model
 
 #################################################################################################################
@@ -86,7 +85,6 @@ ego_location_spawn = carla.Location(x=586.856873, y=-17.063015, z=0.300000) #ego
 ego_transform_spawn = carla.Rotation(pitch=0.000000, yaw=-180.035, roll=0.000000) # ego vehicle initial spawn rotation
 ego_speed_limit = 80 # ego vehicle speed limit in km/h
 ego_keep_distance_speed = 0 # store vehicle speed when neural network predicts that the vehicle should keep distance
-ego_keep_distance_speed_initial = 0 # store initial keep distance speed of ego vehicle
 ego_keep_distance_saved = False # store boolean whether ego_keep_distance_speed is saved or not
 safeToAccPrev = 0 # previous value of cnn prediction of safeToAcc
 #################################################################################################################
@@ -122,26 +120,6 @@ gSpawnMatrix = [gScenario01VehPos, gScenario02VehPos, gScenario03VehPos, gScenar
 # gEgoSpawnId 
 # passed as parameter to SimScenarioRunner class
 gEgoSpawnId = [120, 120, 120, 120, 120, 120]
-#################################################################################################################
-
-#################################################################################################################
-# PID Longitudinal Controller Kp, Ki, Kd Grid search
-# 3-d space
-gPIDParameters = [[1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1], # Kp
-                  [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1], # Ki
-                  [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]] # Kd
-
-# grid search indexes
-n = 0
-i = 0
-j = 0
-k = 0
-
-# grid search save data path
-gGridSearchDataPath = 'pid_grid_search/'
-
-# grid search data container
-pidGridSearchData = SimulationData(False)
 #################################################################################################################
 
 def ego_vehicle_control(vehicle, smaPredictions, safeToAccBuff, pidLongitudinalController):
@@ -196,7 +174,7 @@ def ego_vehicle_control(vehicle, smaPredictions, safeToAccBuff, pidLongitudinalC
             
             print("keep")
             if ((ego_keep_distance_saved == True) and (abs(safeToAccBuff[0] - safeToAccBuff[-1]) > 0.05) and (roc > 0)):
-                if(ego_keep_distance_speed > (ego_keep_distance_speed_initial / 2)):
+                if(ego_keep_distance_speed > 45):
                     ego_keep_distance_speed = ego_keep_distance_speed - gKeepDistanceSpeedSubtract
                     print("again--")
             elif ((ego_keep_distance_saved == True) and (abs(safeToAccBuff[0] - safeToAccBuff[-1]) > 0.05) and (roc < 0)):
@@ -254,22 +232,8 @@ def ego_vehicle_control(vehicle, smaPredictions, safeToAccBuff, pidLongitudinalC
         # if there are no vehicles on the road apply throttle without thinking
         pid_control = pidLongitudinalController.run_step(ego_speed_limit)
         vehicle.apply_control(carla.VehicleControl(throttle = pid_control, steer = 0))
-
-    # grid search 
-    #############
-    throttle = 0
-    brake = 0
-    steer  = 0
-    if(pid_control > 0):
-        throttle = pid_control
-    else:
-        brake = pid_control
-
-    pidGridSearchData.add_data(throttle, brake, steer)
-    #############
     
     return [accelerate_rate, brake_rate, ego_keep_distance_speed]
-
 def ego_vehicle_manual_control(vehicle, keys):
     ctrl_throttle = 0.0 
     ctrl_brake = 0.0
@@ -365,35 +329,11 @@ def cnn_processing(cnn_model, current_frame, smaPredictions):
 
     return [cnn_predictions[0], smaPredictions.getSMABuffer()]
 
-def calculateGridSearchIndexes(grid, i, j, k):
-
-    # calculate grid search indexes based on the current indexes and grid
-    if(k < len(grid[2]) - 1):
-        k += 1
-    else:
-        k = 0
-        
-        if(j < len(grid[1]) - 1):
-            j += 1
-        else:
-            j = 0
-            
-            if(i < len(grid[1]) - 1):
-                i += 1
-            else:
-                i = 0
-        
-    return [i, j, k]
-
 def run_simulation(args, client):
     """This function performed one test run using the args parameters
     and connecting to the carla client passed.
     """
 
-    # grid search 
-    #############
-    global i, j, k
-    #############
     global gRecord_data
     global gData_collected
 
@@ -424,7 +364,7 @@ def run_simulation(args, client):
         display_manager = DisplayManager(hud, grid_size=[1, 1], window_size=[args.width, args.height])
 
         # Instanciating SimulationData in which we will save vehicle state if 'R' is pressed
-        sim_data = SimulationData(True)
+        sim_data = SimulationData(saveImages=False)
 
         # initialize scenario runner
         sim_runner = SimScenarioRunner(client, display_manager, gSpawnMatrix, gEgoSpawnId)
@@ -471,24 +411,10 @@ def run_simulation(args, client):
 
             # run trough different scenarios using SimScenarioRunner in simulation mode
             if(args.training == 'simulation'):
-                # PID Longitudinal controller grid search
-                scenarioId = 1
-                if(scenarioId < len(gSpawnMatrix)):
-                    scenarioIsSwitched = sim_runner.nextScenario(1)#sim_runner.getCurrentScenarioId() + 1)
+                if(scenarioId < len(gSpawnMatrix) - 1):
+                    scenarioIsSwitched = sim_runner.nextScenario(sim_runner.getCurrentScenarioId() + 1)
 
                     if(scenarioIsSwitched):
-                        # grid search 
-                        #############
-                        # calculate grid search indexes
-                        temp = calculateGridSearchIndexes(gPIDParameters, i, j, k)
-                        i, j, k = temp[0], temp[1], temp[2]
-                        sim_runner.setPIDLongitudinalController(PIDLongitudinalController(sim_runner.getEgoVehicle(), 
-                                                                gPIDParameters[n][i], gPIDParameters[n + 1][j], gPIDParameters[n + 2][k]))
-                        print(sim_runner.getPIDLongitudinalController().get_parameters())
-
-                        pidGridSearchData.export_csv(gGridSearchDataPath)
-                        pidGridSearchData.clear_data()
-                        #############
                         scenarioId += 1
                         # get ego vehicle from sim_runner
                         vehicle = sim_runner.getEgoVehicle()
@@ -497,7 +423,7 @@ def run_simulation(args, client):
                         vehicle_list = sim_runner.getVehicleList()
 
                         print("Simulation running... Scenario %d" % sim_runner.getCurrentScenarioId())
-                else: 
+                else:
                     print("Simulation running finished.")
                     break # break simulation loop
 
